@@ -5,20 +5,22 @@ import System from 'system';
 import {record, section, validateRecord} from '../core/usage.js';
 import {collectClaude} from '../providers/claude.js';
 import {collectCodex} from '../providers/codex.js';
+import {collectOpenCode} from '../providers/opencode.js';
 import {commandSpec, findCommand} from '../services/commands.js';
 import {fingerprint, join, readJson} from '../services/files.js';
 import {scanHistory} from '../services/history.js';
+import {readOpenCodeHistory} from '../services/opencodeHistory.js';
 import {requestJson} from '../services/http.js';
 import {RpcClient} from '../services/process.js';
 
-const COLLECTORS = Object.freeze({codex: collectCodex, claude: collectClaude});
+const COLLECTORS = Object.freeze({codex: collectCodex, claude: collectClaude, opencode: collectOpenCode});
 const HISTORY_ROOTS = {
     codex: GLib.getenv('CODEX_HOME') || join(GLib.get_home_dir(), '.codex'),
     claude: GLib.getenv('CLAUDE_CONFIG_DIR') || join(GLib.get_home_dir(), '.claude'),
 };
 const id = ARGV[0];
 if (!Object.prototype.hasOwnProperty.call(COLLECTORS, id)) {
-    printerr('Usage: gjs -m src/collector/main.js <codex|claude> [retention-days]');
+    printerr('Usage: gjs -m src/collector/main.js <codex|claude|opencode> [retention-days]');
     System.exit(2);
 }
 const retentionText = ARGV[1] ?? '';
@@ -34,6 +36,8 @@ let signal = GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, 15, () => {
 const io = {
     fingerprint,
     now: () => Date.now(),
+    openCodeHistory: () => readOpenCodeHistory(Gio.File.new_for_uri(import.meta.url)
+        .get_parent().get_child('opencode_history.py').get_path(), {cancellable}),
     hasCommand(name) {
         try { findCommand(name); return true; } catch { return false; }
     },

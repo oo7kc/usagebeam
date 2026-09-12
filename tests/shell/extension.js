@@ -20,6 +20,12 @@ const midpoint = actor => {
     const box = bounds(actor);
     return box.y + box.height / 2;
 };
+const inkMidpoint = actor => {
+    const text = actor.clutter_text;
+    const [ink, logical] = text.get_layout().get_pixel_extents();
+    const ratio = text.get_preferred_height(-1)[1] / logical.height;
+    return bounds(text).y + (ink.y + ink.height / 2) * ratio;
+};
 const assert = (condition, message) => {
     if (!condition)
         throw new Error(message);
@@ -90,6 +96,11 @@ export default class UsageBeamUITest extends Extension {
             assert(Math.abs(offset) <= scale,
                 `${position}: panel actor midpoint differs by ${offset}px`);
         }
+        for (const actor of [indicator._panelProvider, indicator._panelValue, indicator._panelReset]) {
+            const offset = inkMidpoint(actor) - midpoint(indicator._panelIcon.get_child());
+            assert(Math.abs(offset) <= 1,
+                `${position}: ${actor.text} visible glyphs are off-center by ${offset}px`);
+        }
         assert(value.x - provider.x - provider.width <= 6 * scale,
             `${position}: provider and percentage are spaced too far apart`);
         assert(Math.abs(separator.x - value.x - value.width -
@@ -128,7 +139,7 @@ export default class UsageBeamUITest extends Extension {
         indicator._service.destroy();
         const [, fixture] = GLib.file_get_contents(`${this._output}/ui-fixtures.json`);
         const records = JSON.parse(new TextDecoder().decode(fixture));
-        indicator.attach({enabledProviders: ['codex', 'claude'], recordFor: id => records[id],
+        indicator.attach({enabledProviders: ['codex', 'claude', 'opencode'], recordFor: id => records[id],
             isRefreshing: () => false, refreshAll: () => {}});
         const settings = indicator._settings;
         const calendar = Main.panel.statusArea.dateMenu.container;
@@ -234,7 +245,7 @@ export default class UsageBeamUITest extends Extension {
         await this._wait();
         await this._screenshot('collapsed');
         const providerTabs = matching(indicator._contentBox, 'usagebeam-provider-tab');
-        assert(providerTabs.length === 2, 'Expected one provider tab per enabled provider');
+        assert(providerTabs.length === 3, 'Expected one provider tab per enabled provider');
         assert(providerTabs.filter(tab => tab.checked).length === 1,
             'Provider selector must expose exactly one active tab');
         matching(indicator._contentBox, 'usagebeam-disclosure')[0].emit('clicked', 1);
@@ -330,6 +341,14 @@ export default class UsageBeamUITest extends Extension {
         indicator.menu.actor.add_style_class_name('usagebeam-light');
         await this._wait();
         await this._screenshot('expanded-light');
+        settings.set_string('default-provider', 'opencode');
+        await this._wait();
+        assert(indicator._panelValue.text === '109.2M' && indicator._panelReset.text === '7d',
+            'OpenCode panel must show local tokens and period');
+        assert(matching(indicator._contentBox, 'usagebeam-window').length === 0,
+            'OpenCode must not fabricate quota meters');
+        this._checkPanelSpacing(indicator, calendar, 'right-of-calendar', textScale);
+        await this._screenshot('opencode');
         indicator.menu.close(0);
         return {placement, expanded: initial, modelHeights: heights,
             font, scale, monitorScale, textScale};

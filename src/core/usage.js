@@ -1,5 +1,5 @@
 export const SCHEMA_VERSION = 2;
-export const NAMES = Object.freeze({codex: 'Codex', claude: 'Claude Code'});
+export const NAMES = Object.freeze({codex: 'Codex', claude: 'Claude Code', opencode: 'OpenCode'});
 export const PROVIDER_IDS = Object.freeze(Object.keys(NAMES));
 
 const STATES = new Set(['loading', 'ready', 'partial', 'stale', 'missing-auth', 'unsupported', 'unavailable']);
@@ -215,7 +215,7 @@ export function validateRecord(value, expectedId) {
 export function mergeRecord(previous, next, now = Date.now()) {
     if (!previous || (previous.accountKey && next.accountKey && previous.accountKey !== next.accountKey))
         return next;
-    const result = {...next};
+    const result = {...next, capabilities: {...next.capabilities}};
     for (const key of ['limits', 'history']) {
         const old = previous[key];
         const current = next[key];
@@ -224,8 +224,12 @@ export function mergeRecord(previous, next, now = Date.now()) {
             const preserved = key === 'limits'
                 ? {...old, windows: old.windows.filter(window => !window.resetsAt || window.resetsAt > now)}
                 : old;
-            if (key !== 'limits' || preserved.windows.length)
+            if (key !== 'limits' || preserved.windows.length) {
                 result[key] = {...preserved, status: 'stale', message: current.message};
+                result.capabilities[key] = previous.capabilities[key];
+                if (key === 'history')
+                    result.capabilities.models = previous.capabilities.models;
+            }
         }
     }
     if (result.limits.status === 'stale') {
@@ -233,6 +237,11 @@ export function mergeRecord(previous, next, now = Date.now()) {
         result.accountKey ??= previous.accountKey;
     }
     return result;
+}
+
+export function collectionNeedsBackoff(value) {
+    return ['limits', 'history'].some(key => value.capabilities[key] &&
+        ['unavailable', 'missing-auth'].includes(value[key].status));
 }
 
 export function localDate(time) {

@@ -164,7 +164,12 @@ def seed_usage(destination):
     records = {
         "codex": record("codex", "Codex", "Plus", (100, 94, 83), models),
         "claude": record("claude", "Claude Code", "Pro", (46, 7, 0), models),
+        "opencode": record("opencode", "OpenCode", None, (0, 0, 0), models),
     }
+    records["opencode"]["accountKey"] = None
+    records["opencode"]["capabilities"]["limits"] = False
+    records["opencode"]["limits"].update(status="unsupported", windows=[], updatedAt=None,
+                                         message="OpenCode account limits are unavailable.")
     for provider, data in records.items():
         (target / f"{provider}.json").write_text(json.dumps(data))
     # Separate fixtures survive asynchronous collector updates to the cache.
@@ -263,7 +268,7 @@ def smoke(source, archive, destination, scale=1, text_scale=1.0, *,
         check=True,
     )
     run(
-        ["gsettings", "set", SCHEMA, "enabled-providers", "['codex', 'claude']"],
+        ["gsettings", "set", SCHEMA, "enabled-providers", "['codex', 'claude', 'opencode']"],
         env,
         check=True,
     )

@@ -1,7 +1,7 @@
 export function tokens(value) {
     if (!Number.isFinite(value))
         return '—';
-    for (const [unit, divisor] of [['B', 1e9], ['M', 1e6], ['K', 1e3]]) {
+    for (const [unit, divisor] of [['P', 1e15], ['T', 1e12], ['B', 1e9], ['M', 1e6], ['K', 1e3]]) {
         if (value >= divisor)
             return `${(value / divisor).toFixed(1)}${unit}`;
     }
@@ -9,7 +9,7 @@ export function tokens(value) {
 }
 
 export function compactTokens(value) {
-    return tokens(value).replace(/\.0(?=[BMK]$)/, '');
+    return tokens(value).replace(/\.0(?=[PTBMK]$)/, '');
 }
 
 export function resetTime(time, now = Date.now()) {

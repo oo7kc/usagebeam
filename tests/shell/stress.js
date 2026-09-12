@@ -1,5 +1,6 @@
 // Runs only in the synthetic private desktop; never imported by the product.
 import St from 'gi://St';
+import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const descendants = actor => [actor, ...actor.get_children().flatMap(descendants)];
@@ -17,6 +18,21 @@ export async function runStress({indicator, records, settings, calendar, wait, s
     const geometry = [];
     const check = (name, ok, details = {}) => checks.push({name, ok: Boolean(ok), ...details});
     const baseline = copy(records);
+    const performance = {};
+    const buildContent = indicator._buildContent;
+    let closedBuilds = 0;
+    indicator.menu.close(0);
+    indicator._buildContent = function (...args) {
+        closedBuilds++;
+        return buildContent.apply(this, args);
+    };
+    const closedStart = GLib.get_monotonic_time();
+    for (let iteration = 0; iteration < 100; iteration++)
+        indicator.render();
+    performance.closedRefresh = {milliseconds: (GLib.get_monotonic_time() - closedStart) / 1000,
+        builds: closedBuilds, refreshes: 100};
+    indicator._buildContent = buildContent;
+    check('closed-menu refreshes do not rebuild popup actors', closedBuilds === 0);
     const work = Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.primaryIndex);
     const scale = St.ThemeContext.get_for_stage(global.stage).scale_factor;
     const textFits = actor => actor.clutter_text.get_preferred_width(-1)[1] <= actor.width + 1;
@@ -36,12 +52,14 @@ export async function runStress({indicator, records, settings, calendar, wait, s
         await wait(150);
         const clock = bounds(calendar);
         const slot = bounds(indicator.container);
-        for (const provider of ['claude', 'codex']) {
+        for (const provider of ['claude', 'opencode', 'codex']) {
             settings.set_string('default-provider', provider);
             await wait(100);
             check(`${position}/${provider}: clock and slot stable`,
                 Math.abs(bounds(calendar).x - clock.x) <= 1 &&
-                Math.abs(bounds(indicator.container).width - slot.width) <= 1);
+                Math.abs(bounds(indicator.container).width - slot.width) <= 1,
+                {clockOffset: bounds(calendar).x - clock.x,
+                    widthChange: bounds(indicator.container).width - slot.width});
             check(`${position}/${provider}: panel labels fit`,
                 [indicator._panelProvider, indicator._panelValue, indicator._panelReset].every(textFits));
             checkPanel(position);
@@ -73,7 +91,7 @@ export async function runStress({indicator, records, settings, calendar, wait, s
     check('visible model totals use compact progress tracks', (modelTracks.length === 0 || modelTracks.length === 3) &&
         modelTracks.every(track => track.height / scale === 3 && track._fill.width > 0));
     for (let iteration = 0; iteration < 100; iteration++) {
-        settings.set_string('default-provider', iteration % 2 ? 'codex' : 'claude');
+        settings.set_string('default-provider', ['codex', 'claude', 'opencode'][iteration % 3]);
         indicator.render();
         matching(indicator._contentBox, 'usagebeam-disclosure')[0].emit('clicked', 1);
         matching(indicator._contentBox, 'usagebeam-disclosure')[0].emit('clicked', 1);
@@ -81,6 +99,38 @@ export async function runStress({indicator, records, settings, calendar, wait, s
     }
     check('100 refresh/switch/expand cycles retain actor count', descendants(indicator._contentBox).length === actorCount);
     check('100 refresh/switch/expand cycles retain height', Math.abs(bounds(indicator.menu.actor).height - normalHeight) <= 1);
+
+    settings.set_string('default-provider', 'opencode');
+    await wait(100);
+    const openCodeWidth = bounds(indicator.container).width;
+    for (const total of [0, 999, 999949, 999999, 999949999, 999999999, Number.MAX_SAFE_INTEGER]) {
+        records.opencode = copy(baseline.opencode);
+        records.opencode.history.days = records.opencode.history.days.map((day, index) =>
+            ({...day, total: index === 0 ? total : 0}));
+        indicator.render();
+        await wait(40);
+        check(`opencode-${total}: panel width remains reserved`,
+            Math.abs(bounds(indicator.container).width - openCodeWidth) <= 1);
+        checkPanel('right-of-calendar');
+    }
+    for (const state of ['ready', 'stale', 'partial', 'unavailable', 'unsupported']) {
+        records.opencode = copy(baseline.opencode);
+        records.opencode.history.status = state;
+        if (['unavailable', 'unsupported'].includes(state)) {
+            records.opencode.history.days = [];
+            records.opencode.history.models = [];
+            records.opencode.history.period = null;
+        }
+        indicator.render();
+        await wait(70);
+        fit(`opencode-${state}`);
+        check(`opencode-${state}: no fabricated quota`,
+            !indicator._panelValue.text.includes('%') &&
+            matching(indicator._contentBox, 'usagebeam-window').length === 0);
+        checkPanel('right-of-calendar');
+    }
+    records.opencode = copy(baseline.opencode);
+    settings.set_string('default-provider', 'codex');
 
     for (const state of ['loading', 'unavailable', 'missing-auth', 'unsupported', 'stale', 'partial']) {
         records.codex = copy(baseline.codex);
@@ -183,5 +233,5 @@ export async function runStress({indicator, records, settings, calendar, wait, s
         neighbor.destroy();
     }
     return {ok: checks.every(result => result.ok), checks, geometry,
-        workArea: {x: work.x, y: work.y, width: work.width, height: work.height}, monitorScale, textScale};
+        workArea: {x: work.x, y: work.y, width: work.width, height: work.height}, monitorScale, textScale, performance};
 }

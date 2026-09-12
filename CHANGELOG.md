@@ -6,6 +6,10 @@ All notable UsageBeam changes are documented here.
 
 ### Added
 
+- Optional OpenCode support with a seven-day panel total, daily activity, model
+  breakdowns, and the native OpenCode icon.
+- Read-only OpenCode activity collection with no credential access or extra
+  Python packages. Requires Python 3.11 or newer with SQLite support.
 - Provider enablement, ordering, and default-provider controls in preferences.
 - Notification threshold, history retention, and safe saved-data controls.
 - Clear-data requests also discard in-memory snapshots before activity rebuilds.
@@ -18,6 +22,17 @@ All notable UsageBeam changes are documented here.
   totals, status colors, and responsive hierarchy around a shared Beam accent.
 - Refresh feedback and provider transitions remain compact and avoid animating
   popup geometry.
+- Background refreshes update the panel without rebuilding a closed popup.
+- Large transcript records are scanned once per chunk, reducing collection work.
+
+### Fixed
+
+- Provider names and panel statistics now center their visible glyphs against
+  the logo, including when the configured font or display scale changes.
+- Oversized Codex records unrelated to token usage no longer cause a persistent
+  incomplete-history warning.
+- Local-only providers retain saved activity during temporary failures and
+  reduce retry frequency when their source is unavailable.
 
 ## 2.0.0-alpha.3 - 2026-09-09
 

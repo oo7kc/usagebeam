@@ -8,7 +8,7 @@ function walk(directory) {
 }
 const files = ['extension.js', 'prefs.js', ...walk('src'), ...walk('tests'), ...walk('tools')].filter(file => file.endsWith('.js'));
 for (const file of walk('src')) {
-    if (!file.endsWith('.js'))
+    if (!file.endsWith('.js') && file !== 'src/collector/opencode_history.py')
         throw new Error(`Unexpected non-runtime file under src/: ${file}`);
 }
 const allowedRuntimeImports = {
@@ -51,7 +51,7 @@ if (/font-family\s*:/.test(stylesheet))
     throw new Error('The extension must inherit the configured GNOME system font');
 
 const required = ['README.md', 'CHANGELOG.md',
-    'docs/providers/codex.md', 'docs/providers/claude.md'];
+    'docs/providers/codex.md', 'docs/providers/claude.md', 'docs/providers/opencode.md'];
 for (const file of required) {
     if (!existsSync(file))
         throw new Error(`Missing product documentation: ${file}`);
@@ -60,11 +60,11 @@ const schemas = walk('schemas').filter(file => file.endsWith('.xml'));
 if (schemas.length !== 1 || schemas[0] !== 'schemas/org.gnome.shell.extensions.usagebeam.gschema.xml')
     throw new Error('Unexpected extension schema input');
 const icons = walk('icons');
-if (icons.length !== 2 || !icons.includes('icons/claude.svg') ||
-    !icons.includes('icons/codex-symbolic.svg'))
+if (icons.length !== 3 || !icons.includes('icons/claude.svg') ||
+    !icons.includes('icons/codex-symbolic.svg') || !icons.includes('icons/opencode-symbolic.svg'))
     throw new Error('Unexpected runtime icon input');
 const providerFiles = walk('src/providers').filter(file => file.endsWith('.js')).sort();
-if (providerFiles.join(',') !== 'src/providers/claude.js,src/providers/codex.js')
+if (providerFiles.join(',') !== 'src/providers/claude.js,src/providers/codex.js,src/providers/opencode.js')
     throw new Error(`Unverified provider adapters must not ship: ${providerFiles.join(', ')}`);
 const obsolete = ['plan.md', 'indicator.js', 'src/providers/legacy.js', 'scripts/freeby.sh',
     'src/providers/cursor.js', 'src/providers/copilot.js', 'scripts/copilot-setup.sh',

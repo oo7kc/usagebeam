@@ -7,13 +7,14 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {NAMES, recentDates} from '../core/usage.js';
-import {age, modelName, tokens} from '../core/format.js';
+import {age, compactTokens, modelName, tokens} from '../core/format.js';
 import {quotaSeverity} from '../core/thresholds.js';
 import {initialLayout, nextLayout, pageSlice} from './layoutPolicy.js';
+import {PanelLabel} from './panelLabel.js';
 import {historyOverview, latestUpdate, panelQuota, periodDays, providerStatus,
     quotaPresentation} from './presentation.js';
 import {actionButton, dayChart, disclosureButton, label, meter, modelMeter,
-    limitRow, metricLabel, pageControls, providerIcon, providerTab, separatorDot} from './widgets.js';
+    limitRow, pageControls, providerIcon, providerTab, separatorDot} from './widgets.js';
 
 const TAB_NAMES = {claude: 'Claude'};
 const PROVIDER_MARKS = {codex: '>_', claude: '✦'};
@@ -34,10 +35,11 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         this._panelStatus = new St.BoxLayout({style_class: 'usagebeam-panel-status',
             x_expand: true, x_align: Clutter.ActorAlign.START});
         this._panelIcon = new St.Bin({style_class: 'usagebeam-panel-icon-slot', y_align: Clutter.ActorAlign.CENTER});
-        this._panelProvider = label('UsageBeam', 'usagebeam-panel-provider');
+        this._panelProvider = new PanelLabel('UsageBeam', 'usagebeam-panel-provider');
         this._panelProvider.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-        this._panelValue = metricLabel('—', 'usagebeam-panel-value');
-        this._panelReset = metricLabel('—', 'usagebeam-panel-reset');
+        this._panelValue = new PanelLabel('—', 'usagebeam-panel-value');
+        this._panelReset = new PanelLabel('—', 'usagebeam-panel-reset');
+        this._panelValue.clutter_text.ellipsize = this._panelReset.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this._panelSeparator = separatorDot('usagebeam-panel-separator');
         this._panelMetrics = new St.BoxLayout({style_class: 'usagebeam-panel-metrics',
             y_align: Clutter.ActorAlign.CENTER});
@@ -147,6 +149,10 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         }
         this._syncPanelSizer(enabled);
         this._renderPanelStatus(id, record);
+        // Background collection only needs the panel readout. Build fresh popup
+        // actors on opening instead of rebuilding a hidden menu for every job.
+        if (!this.menu.isOpen)
+            return;
         this.resize();
         // Keep page sizes stable while navigating, even on a shorter last page.
         // A new opening, provider, theme or monitor starts a fresh measurement.
@@ -199,13 +205,16 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         }
         this._panelProvider.text = name;
         const quota = panelQuota(record);
-        this._panelValue.text = quota ? `${quota.percent}%` : '—';
+        const localOnly = record?.capabilities.limits === false && record?.capabilities.history === true;
+        const activity = localOnly ? historyOverview(record.history) : null;
+        this._panelValue.text = quota ? `${quota.percent}%` : activity ? compactTokens(activity.total) : '—';
         const severity = quotaSeverity(quota?.percent);
         this._panelValue.style_class = `usagebeam-panel-value${severity ? ` usagebeam-${severity}` : ''}`;
-        this._panelReset.text = quota?.reset ?? '—';
+        this._panelReset.text = localOnly ? '7d' : quota?.reset ?? '—';
         const resetDescription = quota?.reset === 'due' ? ', reset due' :
             quota?.reset ? `, resets in ${quota.reset}` : '';
-        this.accessible_name = `UsageBeam, ${name}${quota ? `, ${quota.percent} percent used${resetDescription}` : ''}`;
+        this.accessible_name = `UsageBeam, ${name}${quota ? `, ${quota.percent} percent used${resetDescription}` :
+            activity ? `, ${activity.total} local tokens in the last 7 days` : ''}`;
     }
 
     _syncPanelSizer(enabled) {
@@ -215,7 +224,11 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
             return;
         this._panelSizerKey = key;
         this._panelSizer.destroy_all_children();
-        for (const id of providers) {
+        // Units have different widths in system fonts. Compact formatting
+        // removes the decimal when a value rounds up to 1000 of its unit.
+        const samples = providers.flatMap(id => id === 'opencode'
+            ? ['K', 'M', 'B', 'T', 'P'].map(unit => [id, `999.9${unit}`]) : [[id, '999%']]);
+        for (const [id, sample] of samples) {
             const row = new St.BoxLayout({style_class: 'usagebeam-panel-status'});
             const icon = new St.Bin({style_class: 'usagebeam-panel-icon-slot',
                 y_align: Clutter.ActorAlign.CENTER});
@@ -223,10 +236,10 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
                 label(PROVIDER_MARKS[id] ?? 'AI', 'usagebeam-panel-mark'));
             const metrics = new St.BoxLayout({style_class: 'usagebeam-panel-metrics',
                 y_align: Clutter.ActorAlign.CENTER});
-            metrics.add_child(metricLabel('999%', 'usagebeam-panel-value'));
+            metrics.add_child(new PanelLabel(sample, 'usagebeam-panel-value'));
             metrics.add_child(separatorDot('usagebeam-panel-separator'));
-            metrics.add_child(metricLabel('99d 23h', 'usagebeam-panel-reset'));
-            for (const actor of [icon, label(TAB_NAMES[id] ?? NAMES[id], 'usagebeam-panel-provider'), metrics])
+            metrics.add_child(new PanelLabel(id === 'opencode' ? '7d' : '99d 23h', 'usagebeam-panel-reset'));
+            for (const actor of [icon, new PanelLabel(TAB_NAMES[id] ?? NAMES[id], 'usagebeam-panel-provider'), metrics])
                 row.add_child(actor);
             this._panelSizer.add_child(row);
         }

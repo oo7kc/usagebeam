@@ -211,7 +211,9 @@ export function scanHistory(id, roots, parse, {retention = 30, now = Date.now(),
                 buffer.set(tail);
                 buffer.set(bytes, tail.length);
                 let start = 0;
-                for (let i = 0; i < buffer.length; i++) {
+                // The retained tail was already checked for newlines. Scanning
+                // it again on every chunk makes long records quadratic work.
+                for (let i = tail.length; i < buffer.length; i++) {
                     if (buffer[i] !== 10)
                         continue;
                     const line = buffer.subarray(start, i);

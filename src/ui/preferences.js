@@ -32,7 +32,8 @@ function providerGroup(page, settings, signals) {
         const selected = new Set(settings.get_strv('enabled-providers'));
         order.forEach((id, index) => {
             const row = new Adw.SwitchRow({title: NAMES[id],
-                subtitle: 'Account limits and local activity', active: selected.has(id)});
+                subtitle: id === 'opencode' ? 'Local token and model activity' : 'Account limits and local activity',
+                active: selected.has(id)});
             row.add_suffix(moveButton('go-up-symbolic', `Move ${NAMES[id]} up`, index > 0, () => {
                 const next = [...order];
                 [next[index - 1], next[index]] = [next[index], next[index - 1]];

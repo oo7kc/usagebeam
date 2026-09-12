@@ -1,7 +1,7 @@
 {
   "uuid": "usagebeam@oo7kc.github.io",
   "name": "UsageBeam",
-  "description": "Private, at-a-glance usage monitoring for Codex and Claude Code, with account limits, reset windows, local token activity and model breakdowns.",
+  "description": "Private usage monitoring for Codex, Claude Code, and OpenCode, with supported account limits, reset windows, local token activity and model breakdowns.",
   "shell-version": ["50"],
   "settings-schema": "org.gnome.shell.extensions.usagebeam",
   "url": "https://github.com/oo7kc/usagebeam"

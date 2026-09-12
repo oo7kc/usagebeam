@@ -103,7 +103,7 @@ const orderSettings = {
     set_strv(key, value) { providerSettings.set(key, [...value]); },
 };
 assert(migrateProviderOrder(orderSettings), 'provider order migration must preserve an explicit legacy order');
-assert(JSON.stringify(providerSettings.get('provider-order')) === '["claude","codex"]',
+assert(JSON.stringify(providerSettings.get('provider-order')) === '["claude","codex","opencode"]',
     'provider order migration must retain the existing provider sequence');
 assert(!migrateProviderOrder(orderSettings), 'provider order migration must not overwrite an explicit value');
 print('PASS: GJS provider order migration');

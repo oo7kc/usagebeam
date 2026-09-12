@@ -1,6 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {mergeRecord, orderedEnabledProviders, record, section, validateRecord} from '../core/usage.js';
+import {collectionNeedsBackoff, mergeRecord, orderedEnabledProviders, record, section, validateRecord} from '../core/usage.js';
 import {ThresholdTracker} from '../core/notifications.js';
 import {commandSpec} from './commands.js';
 import {join, readJson, stateDirectory, writeJson} from './files.js';
@@ -138,7 +138,7 @@ export class UsageService {
             if (this._closed || job.is_cancelled() || this._jobs.get(id) !== job)
                 return;
             const result = validateRecord(JSON.parse(stdout), id);
-            const failed = ['unavailable', 'missing-auth'].includes(result.limits.status);
+            const failed = collectionNeedsBackoff(result);
             this._failures.set(id, failed ? Math.min(4, (this._failures.get(id) ?? 0) + 1) : 0);
             const alerts = this._thresholds.update(result, this._settings.get_int('notification-threshold'));
             this._records[id] = mergeRecord(this._records[id], result);

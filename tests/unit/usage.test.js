@@ -13,8 +13,8 @@ test('unknown metrics are not coerced to zero', () => {
 });
 
 test('provider selection is ordered, deduplicated and restricted to supported adapters', () => {
-    assert.deepEqual(providerOrder(['claude', 'unknown', 'claude']), ['claude', 'codex']);
-    assert.deepEqual(providerOrder(null), ['codex', 'claude']);
+    assert.deepEqual(providerOrder(['claude', 'unknown', 'claude']), ['claude', 'codex', 'opencode']);
+    assert.deepEqual(providerOrder(null), ['codex', 'claude', 'opencode']);
     assert.deepEqual(orderedEnabledProviders(['codex', 'claude', 'unknown'], ['claude', 'codex']),
         ['claude', 'codex']);
     assert.deepEqual(orderedEnabledProviders(['claude'], []), ['claude']);
@@ -176,6 +176,10 @@ test('formatting preserves unknown/reset-due states', () => {
     assert.equal(tokens(23000000), '23.0M');
     assert.equal(compactTokens(186000000), '186M');
     assert.equal(compactTokens(56300000), '56.3M');
+    assert.equal(tokens(999999999), '1000.0M');
+    assert.equal(tokens(1200000000000), '1.2T');
+    assert.equal(compactTokens(1000000000000000), '1P');
+    assert.equal(tokens(Number.MAX_SAFE_INTEGER), '9.0P');
     assert.equal(resetTime(null), 'Reset time unavailable');
     assert.match(resetTime(100, 200), /awaiting update/);
     assert.equal(resetCountdown(null), null);

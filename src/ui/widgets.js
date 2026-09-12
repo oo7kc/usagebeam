@@ -6,8 +6,7 @@ import St from 'gi://St';
 import {compactTokens} from '../core/format.js';
 import {UsageBeamBar} from './bar.js';
 
-const PROVIDER_ICONS = new Set(['claude', 'codex']);
-const PROVIDER_ICON_FILES = {claude: 'claude.svg', codex: 'codex-symbolic.svg'};
+const PROVIDER_ICON_FILES = {claude: 'claude.svg', codex: 'codex-symbolic.svg', opencode: 'opencode-symbolic.svg'};
 const TAB_DIRECTIONS = new Map([
     [Clutter.KEY_Left, -1],
     [Clutter.KEY_Right, 1],
@@ -37,7 +36,7 @@ export function separatorDot(style = '') {
 }
 
 export function providerIcon(provider, extensionPath, style = '') {
-    if (!PROVIDER_ICONS.has(provider))
+    if (!Object.prototype.hasOwnProperty.call(PROVIDER_ICON_FILES, provider))
         return null;
     return new St.Icon({
         gicon: new Gio.FileIcon({
