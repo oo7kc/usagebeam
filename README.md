@@ -93,7 +93,12 @@ Open the preferences window from the popup or with:
 gnome-extensions prefs usagebeam@oo7kc.github.io
 ```
 
-Preferences control panel placement, refresh frequency, and quota notifications.
+Preferences let you enable and order providers, choose the startup provider,
+place the indicator, set refresh and alert behavior, control activity retention,
+and safely clear UsageBeam's saved usage data.
+
+Clearing saved usage removes UsageBeam's derived snapshots and caches. It does
+not alter provider history, so available activity rebuilds on the next refresh.
 
 ## Privacy and storage
 

@@ -1,3 +1,4 @@
+import Atk from 'gi://Atk';
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
@@ -11,8 +12,8 @@ import {quotaSeverity} from '../core/thresholds.js';
 import {initialLayout, nextLayout, pageSlice} from './layoutPolicy.js';
 import {historyOverview, latestUpdate, panelQuota, periodDays, providerStatus,
     quotaPresentation} from './presentation.js';
-import {actionButton, button, dayChart, disclosureButton, label, meter, modelMeter,
-    limitRow, metricLabel, pageControls, providerIcon, separatorDot} from './widgets.js';
+import {actionButton, dayChart, disclosureButton, label, meter, modelMeter,
+    limitRow, metricLabel, pageControls, providerIcon, providerTab, separatorDot} from './widgets.js';
 
 const TAB_NAMES = {claude: 'Claude'};
 const PROVIDER_MARKS = {codex: '>_', claude: '✦'};
@@ -45,9 +46,22 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         for (const actor of [this._panelIcon, this._panelProvider, this._panelMetrics])
             this._panelStatus.add_child(actor);
         this._panelProviderId = null;
-        // Reserve stable panel space separately from the naturally sized readout.
-        // The unused space belongs on the side away from the calendar.
-        this.add_child(new St.Bin({style_class: 'usagebeam-panel-slot', child: this._panelStatus}));
+        // An invisible overlay reserves the widest supported readout. This keeps
+        // the calendar fixed while allowing the configured system font to size
+        // the indicator naturally instead of relying on a hard-coded width.
+        this._panelSlot = new St.Widget({
+            style_class: 'usagebeam-panel-slot',
+            layout_manager: new Clutter.BinLayout(),
+        });
+        this._panelSizer = new St.Widget({
+            opacity: 0,
+            reactive: false,
+            accessible_role: Atk.Role.REDUNDANT_OBJECT,
+            layout_manager: new Clutter.BinLayout(),
+        });
+        this._panelSlot.add_child(this._panelSizer);
+        this._panelSlot.add_child(this._panelStatus);
+        this.add_child(this._panelSlot);
         this.menu.actor.add_style_class_name('usagebeam-menu');
         this._shellSettings = St.Settings.get();
         this._shellSettings.connectObject(
@@ -74,7 +88,6 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
                 this._layout = null;
             }
         });
-        this.render();
     }
 
     _syncColorScheme() {
@@ -109,13 +122,16 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         if (!this._contentBox)
             return;
         const focus = global.stage.get_key_focus();
-        const restoreName = focus && this._contentBox.contains(focus) ? focus.accessible_name : null;
+        const restoreName = this._pendingFocusName ??
+            (focus && this._contentBox.contains(focus) ? focus.accessible_name : null);
+        this._pendingFocusName = null;
         const enabled = this._service?.enabledProviders ?? [];
         const requested = this._settings.get_string('default-provider');
         const id = enabled.includes(requested) ? requested : enabled[0];
         const record = this._service?.recordFor(id);
         const busy = this._service?.isRefreshing(id) ?? false;
-        if (this._renderedProvider !== id) {
+        const providerChanged = this._renderedProvider !== id;
+        if (providerChanged) {
             this._limitPage = this._activityPage = this._modelPage = this._sectionPage = 0;
             this._layout = null;
             this._renderedProvider = id;
@@ -129,6 +145,7 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
             this._layout = null;
             this._limitPage = this._modelPage = this._sectionPage = 0;
         }
+        this._syncPanelSizer(enabled);
         this._renderPanelStatus(id, record);
         this.resize();
         // Keep page sizes stable while navigating, even on a shorter last page.
@@ -149,6 +166,7 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
             this._layout = next;
         }
         this._restoreFocus(restoreName);
+        this._animateProviderChange(providerChanged);
     }
 
     _buildContent(enabled, id, record, busy) {
@@ -190,6 +208,30 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         this.accessible_name = `UsageBeam, ${name}${quota ? `, ${quota.percent} percent used${resetDescription}` : ''}`;
     }
 
+    _syncPanelSizer(enabled) {
+        const providers = enabled.length ? enabled : Object.keys(NAMES);
+        const key = providers.join('\u0000');
+        if (this._panelSizerKey === key)
+            return;
+        this._panelSizerKey = key;
+        this._panelSizer.destroy_all_children();
+        for (const id of providers) {
+            const row = new St.BoxLayout({style_class: 'usagebeam-panel-status'});
+            const icon = new St.Bin({style_class: 'usagebeam-panel-icon-slot',
+                y_align: Clutter.ActorAlign.CENTER});
+            icon.set_child(providerIcon(id, this._extensionPath, 'usagebeam-panel-icon') ??
+                label(PROVIDER_MARKS[id] ?? 'AI', 'usagebeam-panel-mark'));
+            const metrics = new St.BoxLayout({style_class: 'usagebeam-panel-metrics',
+                y_align: Clutter.ActorAlign.CENTER});
+            metrics.add_child(metricLabel('999%', 'usagebeam-panel-value'));
+            metrics.add_child(separatorDot('usagebeam-panel-separator'));
+            metrics.add_child(metricLabel('99d 23h', 'usagebeam-panel-reset'));
+            for (const actor of [icon, label(TAB_NAMES[id] ?? NAMES[id], 'usagebeam-panel-provider'), metrics])
+                row.add_child(actor);
+            this._panelSizer.add_child(row);
+        }
+    }
+
     _renderHeader(id, record, busy) {
         const header = new St.BoxLayout({style_class: 'usagebeam-header', x_expand: true});
         const icon = providerIcon(id, this._extensionPath, 'usagebeam-header-icon');
@@ -199,7 +241,7 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
             header.add_child(label(PROVIDER_MARKS[id] ?? 'AI', 'usagebeam-provider-mark'));
         const identity = new St.BoxLayout({vertical: true, style_class: 'usagebeam-identity', x_expand: true});
         identity.add_child(label(TAB_NAMES[id] ?? record?.name ?? 'UsageBeam', 'usagebeam-title'));
-        const plan = label(record?.plan ? String(record.plan).toUpperCase() : 'USAGE MONITOR', 'usagebeam-caption');
+        const plan = label(record?.plan ? String(record.plan) : 'Usage monitor', 'usagebeam-caption');
         plan.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         identity.add_child(plan);
         header.add_child(identity);
@@ -212,16 +254,23 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         const selector = new St.Widget({style_class: 'usagebeam-selector', x_expand: true,
             layout_manager: new Clutter.BoxLayout({orientation: Clutter.Orientation.HORIZONTAL,
                 homogeneous: true, spacing: 8})});
-        for (const provider of enabled) {
-            selector.add_child(button(TAB_NAMES[provider] ?? NAMES[provider],
+        enabled.forEach((provider, index) => {
+            const name = `Show ${NAMES[provider]} usage`;
+            selector.add_child(providerTab(TAB_NAMES[provider] ?? NAMES[provider],
                 () => this._settings.set_string('default-provider', provider),
-                {active: provider === selected, name: `Show ${NAMES[provider]} usage`}));
-        }
+                direction => {
+                    const next = direction === -Infinity ? 0 : direction === Infinity ? enabled.length - 1
+                        : (index + direction + enabled.length) % enabled.length;
+                    const target = enabled[next];
+                    this._pendingFocusName = `Show ${NAMES[target]} usage`;
+                    this._settings.set_string('default-provider', target);
+                }, {active: provider === selected, name}));
+        });
         this._contentBox.add_child(selector);
     }
 
     _renderLimits(limits) {
-        this._heading('LIMITS');
+        this._heading('Limits');
         const page = pageSlice(limits.windows.filter(window => quotaPresentation(window)), this._limitPage, this._layout.limits);
         for (const window of page.items) {
             const box = new St.BoxLayout({vertical: true, style_class: 'usagebeam-window'});
@@ -285,15 +334,15 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
 
     _renderDays(history, parent = this._contentBox) {
         const overview = historyOverview(history);
-        this._heading(`LAST ${overview?.days ?? history.days.length} DAYS · ${tokens(overview?.total ?? 0)} TOKENS`, parent);
+        this._heading(`Last ${overview?.days ?? history.days.length} days · ${tokens(overview?.total ?? 0)} tokens`, parent);
         const today = recentDates(Date.now(), 1)[0];
         parent.add_child(dayChart(history.days, today));
     }
 
     _renderModels(history, parent = this._contentBox) {
-        const modelScope = history.scope === 'account' ? 'ACCOUNT' : 'LOCAL';
+        const modelScope = history.scope === 'account' ? 'account' : 'local';
         const days = periodDays(history.period);
-        this._heading(`TOKENS BY MODEL${days ? ` · ${days}D` : ''} ${modelScope}`, parent);
+        this._heading(`Tokens by model${days ? ` · ${days}d` : ''} ${modelScope}`, parent);
         const max = Math.max(1, ...history.models.map(model => model.total));
         const page = pageSlice(history.models, this._modelPage, this._layout.models);
         for (const model of page.items) {
@@ -311,8 +360,14 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
 
     _renderFooter(record, busy) {
         const actions = new St.BoxLayout({style_class: 'usagebeam-actions', x_expand: true});
-        actions.add_child(label(busy ? 'Refreshing…' : age(latestUpdate(record)), 'usagebeam-caption', true));
-        actions.add_child(actionButton('Refresh', () => this._service?.refreshAll(true), 'Refresh usage'));
+        actions.add_child(label(age(latestUpdate(record)), 'usagebeam-caption', true));
+        const refresh = actionButton(busy ? 'Refreshing…' : 'Refresh',
+            () => this._service?.refreshAll(true), 'Refresh usage');
+        refresh.reactive = !busy;
+        refresh.can_focus = !busy;
+        if (busy)
+            refresh.add_style_pseudo_class('insensitive');
+        actions.add_child(refresh);
         actions.add_child(actionButton('Settings', () => { this.menu.close(); this._openPreferences(); },
             'Open extension settings'));
         this._contentBox.add_child(actions);
@@ -329,6 +384,19 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         const target = [name, opposite].filter(Boolean).map(candidate =>
             actors.find(actor => actor.can_focus && actor.accessible_name === candidate)).find(Boolean);
         target?.grab_key_focus();
+    }
+
+    _animateProviderChange(changed) {
+        this._contentBox.remove_all_transitions();
+        this._contentBox.opacity = 255;
+        if (!changed || !this.menu.isOpen || !this._shellSettings.enable_animations)
+            return;
+        this._contentBox.opacity = 220;
+        this._contentBox.ease({
+            opacity: 255,
+            duration: 120,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
     }
 
     _heading(text, parent = this._contentBox) {

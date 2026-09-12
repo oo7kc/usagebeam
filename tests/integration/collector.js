@@ -5,10 +5,11 @@ import {scanHistory} from '../../src/services/history.js';
 import {parseCodexEvent} from '../../src/providers/codex.js';
 import {parseClaudeEvent} from '../../src/providers/claude.js';
 import {commandSpec, findCommand} from '../../src/services/commands.js';
-import {join, migrateLegacyData, readJson, writeJson} from '../../src/services/files.js';
+import {clearDerivedData, join, migrateLegacyData, readJson, writeJson} from '../../src/services/files.js';
 import {requestJson} from '../../src/services/http.js';
-import {copyLegacySettings} from '../../src/services/migration.js';
+import {copyLegacySettings, migrateProviderOrder} from '../../src/services/migration.js';
 import {RpcClient, runCommand} from '../../src/services/process.js';
+import {UsageService} from '../../src/services/usageService.js';
 
 function assert(value, message) {
     if (!value)
@@ -64,6 +65,24 @@ assert(migrateLegacyData({legacyState, legacyCache, state: migratedState, cache:
     'legacy migration must not overwrite migrated data');
 print('PASS: GJS legacy derived-data migration');
 
+const clearState = join(scratch, 'clear-state');
+const clearCache = join(scratch, 'clear-cache');
+writeJson(join(clearState, 'codex.json'), {provider: 'codex'});
+writeJson(join(clearCache, 'unrelated.json'), {preserve: true});
+GLib.mkdir_with_parents(join(clearState, 'claude.json'), 0o700);
+Gio.File.new_for_path(join(clearCache, 'history-claude.json'))
+    .make_symbolic_link(join(clearCache, 'unrelated.json'), null);
+assert(clearDerivedData({state: clearState, cache: clearCache}) === 2,
+    'clear data must remove only recognized regular files and links');
+assert(!Gio.File.new_for_path(join(clearState, 'codex.json')).query_exists(null),
+    'clear data must remove provider state');
+assert(!Gio.File.new_for_path(join(clearCache, 'history-claude.json'))
+    .query_exists(null), 'clear data must unlink recognized cache links');
+assert(Gio.File.new_for_path(join(clearState, 'claude.json')).query_exists(null) &&
+    readJson(join(clearCache, 'unrelated.json')).preserve,
+    'clear data must retain directories and unrelated files');
+print('PASS: GJS safe derived-data clearing');
+
 const currentSettings = new Map([['default-provider', 'claude']]);
 const formerSettings = new Map([['default-provider', 'codex'], ['refresh-interval', 30]]);
 const fakeSettings = values => ({
@@ -75,6 +94,44 @@ assert(copyLegacySettings(fakeSettings(currentSettings), fakeSettings(formerSett
 assert(currentSettings.get('default-provider') === 'claude' && currentSettings.get('refresh-interval') === 30,
     'settings migration must preserve UsageBeam values');
 print('PASS: GJS legacy settings migration policy');
+
+const providerSettings = new Map([['enabled-providers', {
+    deepUnpack: () => ['claude', 'codex'],
+}]]);
+const orderSettings = {
+    get_user_value: key => providerSettings.get(key) ?? null,
+    set_strv(key, value) { providerSettings.set(key, [...value]); },
+};
+assert(migrateProviderOrder(orderSettings), 'provider order migration must preserve an explicit legacy order');
+assert(JSON.stringify(providerSettings.get('provider-order')) === '["claude","codex"]',
+    'provider order migration must retain the existing provider sequence');
+assert(!migrateProviderOrder(orderSettings), 'provider order migration must not overwrite an explicit value');
+print('PASS: GJS provider order migration');
+
+let cancelledJob = false;
+let changedRecords = 0;
+let forcedRefresh = null;
+const previousThresholds = {};
+const service = Object.assign(Object.create(UsageService.prototype), {
+    _closed: false,
+    _enabled: ['claude', 'codex'],
+    _jobs: new Map([['codex', {cancel: () => { cancelledJob = true; }}]]),
+    _attempts: new Map([['codex', 1]]),
+    _failures: new Map([['codex', 2]]),
+    _thresholds: previousThresholds,
+    _records: {codex: {saved: true}},
+    _emitChanged: () => { changedRecords++; },
+    refreshAll: force => { forcedRefresh = force; },
+});
+service.clearSavedData();
+assert(cancelledJob && !service._jobs.size && !service._attempts.size && !service._failures.size,
+    'clear data must cancel in-flight work and reset scheduler state');
+assert(Object.keys(service._records).join(',') === 'claude,codex' &&
+    Object.values(service._records).every(value => value.schemaVersion === 2),
+    'clear data must replace saved records with clean provider contracts');
+assert(service._thresholds !== previousThresholds && changedRecords === 1 && forcedRefresh,
+    'clear data must reset alerts, update the panel and rebuild provider data');
+print('PASS: GJS in-memory usage clearing');
 
 const replacementRoot = join(scratch, 'replacement');
 GLib.mkdir_with_parents(replacementRoot, 0o700);

@@ -8,6 +8,12 @@ import {UsageBeamBar} from './bar.js';
 
 const PROVIDER_ICONS = new Set(['claude', 'codex']);
 const PROVIDER_ICON_FILES = {claude: 'claude.svg', codex: 'codex-symbolic.svg'};
+const TAB_DIRECTIONS = new Map([
+    [Clutter.KEY_Left, -1],
+    [Clutter.KEY_Right, 1],
+    [Clutter.KEY_Home, -Infinity],
+    [Clutter.KEY_End, Infinity],
+]);
 
 export function label(text, style = '', expand = false) {
     return new St.Label({text: String(text ?? ''), style_class: style,
@@ -56,13 +62,20 @@ export function meter(fraction, name, style = '') {
 }
 
 export function modelMeter(left, right, fraction, name) {
+    const row = new St.BoxLayout({
+        vertical: true,
+        style_class: 'usagebeam-model-meter',
+        x_expand: true,
+    });
     const content = new St.BoxLayout({style_class: 'usagebeam-model-content'});
     const title = label(left, 'usagebeam-model-name', true);
     title.clutter_text.ellipsize = Pango.EllipsizeMode.END;
     content.add_child(title);
     content.add_child(metricLabel(right, 'usagebeam-number'));
-    return new UsageBeamBar({fraction, name, content,
-        style: 'usagebeam-model-meter', fillStyle: 'usagebeam-model-fill'});
+    row.add_child(content);
+    row.add_child(new UsageBeamBar({fraction, name,
+        style: 'usagebeam-model-track', fillStyle: 'usagebeam-model-fill'}));
+    return row;
 }
 
 export function dayChart(days, today) {
@@ -84,7 +97,7 @@ export function dayChart(days, today) {
         const weekday = new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, {weekday: 'short'});
         const column = new St.BoxLayout({
             vertical: true,
-            style_class: `usagebeam-chart-column${isToday ? ' usagebeam-today' : ''}`,
+            style_class: `usagebeam-chart-column${isToday ? ' usagebeam-today' : ''}${day.total ? '' : ' usagebeam-empty'}`,
             x_expand: true,
             accessible_name: `${isToday ? 'Today, ' : ''}${weekday}, ${day.total} tokens, ${day.sessions ?? 0} sessions`,
         });
@@ -92,7 +105,7 @@ export function dayChart(days, today) {
         const plot = new UsageBeamBar({
             fraction: day.total / max,
             name: `${day.date}: ${day.total} tokens`,
-            style: 'usagebeam-chart-plot',
+            style: `usagebeam-chart-plot${day.total ? '' : ' usagebeam-empty'}`,
             fillStyle: 'usagebeam-chart-bar',
             vertical: true,
         });
@@ -109,6 +122,31 @@ export function button(text, callback, {active = false, name = text} = {}) {
     if (active)
         actor.add_style_pseudo_class('checked');
     actor.connect('clicked', callback);
+    return actor;
+}
+
+export function providerTab(text, callback, navigate, {active = false, name = text} = {}) {
+    const actor = new St.Button({
+        label: text,
+        accessible_name: name,
+        accessible_role: Atk.Role.PAGE_TAB,
+        can_focus: true,
+        checked: active,
+        reactive: true,
+        style_class: 'usagebeam-provider-tab',
+        track_hover: true,
+        x_expand: true,
+    });
+    if (active)
+        actor.add_style_pseudo_class('checked');
+    actor.connect('clicked', callback);
+    actor.connect('key-press-event', (_button, event) => {
+        const direction = TAB_DIRECTIONS.get(event.get_key_symbol());
+        if (direction === undefined)
+            return Clutter.EVENT_PROPAGATE;
+        navigate(direction);
+        return Clutter.EVENT_STOP;
+    });
     return actor;
 }
 

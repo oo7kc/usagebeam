@@ -6,17 +6,17 @@ import {notificationMilestones, quotaSeverity, QUOTA_THRESHOLDS} from '../../src
 
 test('provider status distinguishes live, local, cached and setup data', () => {
     const value = {limits: {status: 'ready'}, history: {status: 'ready'}};
-    assert.equal(providerStatus(value), 'LIVE');
+    assert.equal(providerStatus(value), 'Live');
     value.limits.status = 'unavailable';
-    assert.equal(providerStatus(value), 'LOCAL');
+    assert.equal(providerStatus(value), 'Local');
     value.history.status = 'stale';
-    assert.equal(providerStatus(value), 'CACHED');
+    assert.equal(providerStatus(value), 'Cached');
     value.history.status = 'unsupported';
-    assert.equal(providerStatus(value), 'SETUP');
-    assert.equal(providerStatus(value, true), 'SYNC');
-    assert.equal(providerStatus(null, true), 'SYNC');
+    assert.equal(providerStatus(value), 'Setup');
+    assert.equal(providerStatus(value, true), 'Sync');
+    assert.equal(providerStatus(null, true), 'Sync');
     value.limits.status = 'ready';
-    assert.equal(providerStatus(value, true), 'LIVE');
+    assert.equal(providerStatus(value, true), 'Live');
 });
 
 test('presentation helpers derive bounded period and freshness labels', () => {

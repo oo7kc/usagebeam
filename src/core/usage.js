@@ -1,5 +1,6 @@
 export const SCHEMA_VERSION = 2;
 export const NAMES = Object.freeze({codex: 'Codex', claude: 'Claude Code'});
+export const PROVIDER_IDS = Object.freeze(Object.keys(NAMES));
 
 const STATES = new Set(['loading', 'ready', 'partial', 'stale', 'missing-auth', 'unsupported', 'unavailable']);
 const WINDOW_STATES = new Set(['active', 'exhausted', 'unlimited']);
@@ -55,6 +56,16 @@ export function section(status = 'loading', message = '') {
 
 export function isProvider(id) {
     return typeof id === 'string' && Object.prototype.hasOwnProperty.call(NAMES, id);
+}
+
+export function providerOrder(value = []) {
+    const requested = Array.isArray(value) ? value : [];
+    return [...new Set([...requested.filter(isProvider), ...PROVIDER_IDS])];
+}
+
+export function orderedEnabledProviders(enabled = [], order = []) {
+    const selected = new Set(Array.isArray(enabled) ? enabled.filter(isProvider) : []);
+    return providerOrder(order).filter(id => selected.has(id));
 }
 
 export function record(id) {

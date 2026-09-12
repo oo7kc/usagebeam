@@ -1,7 +1,5 @@
 .usagebeam-menu {
-  font-family: "SF Pro Text";
   font-size: 10.5pt;
-  font-feature-settings: "tnum";
   -arrow-background-color: transparent;
   -arrow-border-color: transparent;
   -arrow-border-width: 0px;
@@ -12,17 +10,15 @@
 }
 
 .usagebeam-menu .popup-menu-content {
-  font-family: "SF Pro Text";
   font-size: 10.5pt;
-  font-feature-settings: "tnum";
-  border: 1px solid st-transparentize(st-lighten(-st-accent-color, 20%), 0.34);
+  border: 1px solid st-transparentize(st-lighten(-st-accent-color, 20%), 0.42);
   border-radius: 12px;
   box-shadow: none;
 }
 
 .usagebeam-menu.usagebeam-dark .popup-menu-content {
   color: #edf4f6;
-  background-color: st-mix(-st-accent-color, #182b35, 6%);
+  background-color: st-mix(-st-accent-color, #1b3039, 7%);
 }
 
 .usagebeam-menu.usagebeam-light .popup-menu-content {
@@ -36,10 +32,7 @@
 }
 
 .usagebeam-panel-slot {
-  width: 12.5em;
-  font-family: "SF Pro Text";
   font-size: 9.5pt;
-  font-feature-settings: "tnum";
 }
 
 .usagebeam-panel-status {
@@ -73,6 +66,7 @@
 .usagebeam-panel-value,
 .usagebeam-panel-reset {
   color: st-lighten(-st-accent-color, 25%);
+  font-feature-settings: "tnum";
   font-size: 8.75pt;
 }
 
@@ -125,20 +119,17 @@
   min-width: 29px;
   min-height: 29px;
   color: st-lighten(-st-accent-color, 22%);
-  font-family: "SF Pro Text";
   font-size: 10pt;
   font-weight: 650;
   text-align: center;
 }
 
 .usagebeam-title {
-  font-family: "SF Pro Display";
   font-size: 14pt;
   font-weight: 700;
 }
 
 .usagebeam-caption {
-  font-feature-settings: "tnum";
   font-size: 9.5pt;
   opacity: 0.76;
 }
@@ -159,7 +150,7 @@
 }
 
 .usagebeam-status-local {
-  color: #f8d66d;
+  color: st-lighten(-st-accent-color, 25%);
 }
 
 .usagebeam-status-cached {
@@ -169,6 +160,30 @@
 .usagebeam-selector {
   spacing: 8px;
   padding-bottom: 10px;
+}
+
+.usagebeam-provider-tab {
+  min-height: 25px;
+  padding: 4px 10px 3px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 5px 5px 0 0;
+  background-color: transparent;
+  font-size: 10pt;
+  opacity: 0.72;
+}
+
+.usagebeam-provider-tab:hover,
+.usagebeam-provider-tab:focus {
+  background-color: rgba(128, 150, 160, 0.08);
+  opacity: 0.94;
+}
+
+.usagebeam-provider-tab:checked {
+  border-bottom-color: st-lighten(-st-accent-color, 22%);
+  background-color: st-transparentize(-st-accent-color, 0.91);
+  font-weight: 650;
+  opacity: 1;
 }
 
 .usagebeam-button {
@@ -192,7 +207,8 @@
 }
 
 .usagebeam-button:focus,
-.usagebeam-disclosure:focus {
+.usagebeam-disclosure:focus,
+.usagebeam-provider-tab:focus {
   box-shadow: inset 0 0 0 2px st-transparentize(-st-accent-color, 0.24);
 }
 
@@ -216,6 +232,7 @@
 
 .usagebeam-limit-percent {
   color: st-mix(-st-accent-color, #d7e4eb, 28%);
+  font-feature-settings: "tnum";
   font-size: 9.5pt;
   font-weight: 620;
   text-align: right;
@@ -223,6 +240,7 @@
 
 .usagebeam-limit-reset {
   color: st-mix(-st-accent-color, #9baab4, 12%);
+  font-feature-settings: "tnum";
   font-size: 9.5pt;
   font-weight: 500;
   text-align: left;
@@ -310,7 +328,8 @@
 }
 
 .usagebeam-chart-plot {
-  height: 52px;
+  height: 51px;
+  border-bottom: 1px solid rgba(143, 166, 176, 0.22);
 }
 
 .usagebeam-chart-bar {
@@ -329,22 +348,31 @@
   background-color: st-mix(-st-accent-color, #c7dce6, 52%);
 }
 
+.usagebeam-chart-column.usagebeam-empty .usagebeam-chart-value,
+.usagebeam-chart-column.usagebeam-empty .usagebeam-chart-day {
+  opacity: 0.46;
+}
+
 .usagebeam-model-meter {
-  min-height: 27px;
-  margin-bottom: 5px;
-  border: 1px solid rgba(128, 150, 160, 0.12);
-  border-radius: 4px;
-  background-color: rgba(128, 150, 160, 0.11);
+  min-height: 22px;
+  margin-bottom: 6px;
+  spacing: 4px;
+}
+
+.usagebeam-model-track {
+  height: 3px;
+  border-radius: 2px;
+  background-color: rgba(143, 166, 176, 0.18);
 }
 
 .usagebeam-model-fill {
-  border-radius: 3px;
-  background-color: st-transparentize(st-mix(-st-accent-color, #aebfc8, 36%), 0.34);
+  border-radius: 2px;
+  background-color: st-transparentize(st-mix(-st-accent-color, #aebfc8, 40%), 0.18);
 }
 
 .usagebeam-model-content {
   spacing: 10px;
-  padding: 4px 8px;
+  padding: 0 1px;
   font-size: 9.25pt;
 }
 
@@ -362,6 +390,12 @@
   padding-top: 9px;
   margin-top: 4px;
   border-top: 1px solid rgba(128, 150, 160, 0.22);
+}
+
+.usagebeam-actions .usagebeam-caption,
+.usagebeam-section-title,
+.usagebeam-page-label {
+  font-feature-settings: "tnum";
 }
 
 .usagebeam-pagination {
@@ -414,6 +448,14 @@
 
 .usagebeam-menu.usagebeam-light .usagebeam-track {
   background-color: rgba(55, 76, 86, 0.18);
+}
+
+.usagebeam-menu.usagebeam-light .usagebeam-model-track {
+  background-color: rgba(55, 76, 86, 0.14);
+}
+
+.usagebeam-menu.usagebeam-light .usagebeam-chart-plot {
+  border-color: rgba(55, 76, 86, 0.18);
 }
 
 .usagebeam-menu.usagebeam-light .usagebeam-chart-bar {

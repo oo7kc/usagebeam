@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {aggregateEvents, mergeRecord, number, recentDates, record, validTime, validateRecord, windowUsage} from '../../src/core/usage.js';
+import {aggregateEvents, mergeRecord, number, orderedEnabledProviders, providerOrder,
+    recentDates, record, validTime, validateRecord, windowUsage} from '../../src/core/usage.js';
 import {compactTokens, modelName, resetCountdown, resetTime, tokens} from '../../src/core/format.js';
 import {notificationBody, ThresholdTracker} from '../../src/core/notifications.js';
 
@@ -9,6 +10,15 @@ test('unknown metrics are not coerced to zero', () => {
         assert.equal(number(value), null);
     assert.equal(number(0), 0);
     assert.equal(windowUsage({id: 'plan', label: 'Plan', used: 0, limit: 0}), null);
+});
+
+test('provider selection is ordered, deduplicated and restricted to supported adapters', () => {
+    assert.deepEqual(providerOrder(['claude', 'unknown', 'claude']), ['claude', 'codex']);
+    assert.deepEqual(providerOrder(null), ['codex', 'claude']);
+    assert.deepEqual(orderedEnabledProviders(['codex', 'claude', 'unknown'], ['claude', 'codex']),
+        ['claude', 'codex']);
+    assert.deepEqual(orderedEnabledProviders(['claude'], []), ['claude']);
+    assert.deepEqual(orderedEnabledProviders(null, ['claude', 'codex']), []);
 });
 
 test('unknown, exhausted and unlimited windows remain distinct', () => {

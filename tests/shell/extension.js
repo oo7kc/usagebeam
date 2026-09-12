@@ -232,6 +232,10 @@ export default class UsageBeamUITest extends Extension {
         indicator.menu.open(0);
         await this._wait();
         await this._screenshot('collapsed');
+        const providerTabs = matching(indicator._contentBox, 'usagebeam-provider-tab');
+        assert(providerTabs.length === 2, 'Expected one provider tab per enabled provider');
+        assert(providerTabs.filter(tab => tab.checked).length === 1,
+            'Provider selector must expose exactly one active tab');
         matching(indicator._contentBox, 'usagebeam-disclosure')[0].emit('clicked', 1);
         await this._wait();
         assert(indicator._detailsExpanded, 'Activity button did not expand');
@@ -243,9 +247,11 @@ export default class UsageBeamUITest extends Extension {
         const models = matching(content, 'usagebeam-model-meter');
         assert(models.length === 3, 'Expected three synthetic models');
         for (const actor of models) {
-            assert(actor.height / scale >= 27 && actor.height / scale <= 40 * textScale,
+            assert(actor.height / scale >= 22 && actor.height / scale <= 36 * textScale,
                 `Model row height is not compact: ${actor.height / scale}`);
-            assert(actor._fill.width > 0 && actor._fill.height > 0, 'Model fill is empty');
+            const tracks = matching(actor, 'usagebeam-model-track');
+            assert(tracks.length === 1, 'Model row must contain one compact progress track');
+            assert(tracks[0]._fill.width > 0 && tracks[0]._fill.height > 0, 'Model fill is empty');
         }
         const plots = matching(content, 'usagebeam-chart-plot');
         assert(plots.length === 7, 'Expected seven chart columns');
@@ -315,7 +321,9 @@ export default class UsageBeamUITest extends Extension {
             models.forEach((actor, index) => assert(actor.height === heights[index], 'Model row grows on layout'));
         }
         const font = content.get_theme_node().get_font().to_string();
-        assert(font.includes('SF Pro Text'), `Requested font family was overridden: ${font}`);
+        const expectedFont = GLib.getenv('USAGEBEAM_EXPECTED_FONT');
+        assert(expectedFont && font.includes(expectedFont),
+            `Configured system font ${expectedFont} was overridden: ${font}`);
         await this._screenshot('expanded-dark');
         indicator.menu.actor.remove_style_class_name('usagebeam-dark');
         indicator.menu.actor.add_style_class_name('usagebeam-light');

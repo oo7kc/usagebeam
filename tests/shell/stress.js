@@ -69,6 +69,9 @@ export async function runStress({indicator, records, settings, calendar, wait, s
     check('seven daily bars allocate correctly', plots.length === 7 && plots.every(plot =>
         plot.height / scale === 52 && (plot._fraction === 0 || (plot._fill.width > 0 && plot._fill.height > 0))));
     check('activity has no nested scrolling', !descendants(indicator._contentBox).some(actor => actor instanceof St.ScrollView));
+    const modelTracks = matching(indicator._contentBox, 'usagebeam-model-track');
+    check('visible model totals use compact progress tracks', (modelTracks.length === 0 || modelTracks.length === 3) &&
+        modelTracks.every(track => track.height / scale === 3 && track._fill.width > 0));
     for (let iteration = 0; iteration < 100; iteration++) {
         settings.set_string('default-provider', iteration % 2 ? 'codex' : 'claude');
         indicator.render();

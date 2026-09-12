@@ -46,6 +46,9 @@ if (metadata.name !== 'UsageBeam' || metadata['settings-schema'] !== 'org.gnome.
 const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
 if (!readFileSync('meson.build', 'utf8').includes(`version: '${version}'`))
     throw new Error('Meson and package versions differ');
+const stylesheet = readFileSync('stylesheet.css', 'utf8');
+if (/font-family\s*:/.test(stylesheet))
+    throw new Error('The extension must inherit the configured GNOME system font');
 
 const required = ['README.md', 'CHANGELOG.md',
     'docs/providers/codex.md', 'docs/providers/claude.md'];

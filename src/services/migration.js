@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import {providerOrder} from '../core/usage.js';
 import {join, migrateLegacyData} from './files.js';
 
 const LEGACY_UUID = 'freeby@kelvin.local';
@@ -57,4 +58,16 @@ export function copyLegacySettings(settings, legacy) {
 export function migrateLegacyInstall(settings) {
     migrateLegacyData();
     migrateLegacySettings(settings);
+    migrateProviderOrder(settings);
+}
+
+export function migrateProviderOrder(settings) {
+    if (settings.get_user_value('provider-order') !== null)
+        return false;
+    const value = settings.get_user_value('enabled-providers');
+    if (value === null)
+        return false;
+    const enabled = value.deepUnpack?.() ?? value.deep_unpack?.() ?? value;
+    settings.set_strv('provider-order', providerOrder(enabled));
+    return true;
 }

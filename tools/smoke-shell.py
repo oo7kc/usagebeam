@@ -201,11 +201,15 @@ def smoke(source, archive, destination, scale=1, text_scale=1.0, *,
         "USAGEBEAM_TEST_OUTPUT": str(destination),
         "USAGEBEAM_TEST_SCALE": str(scale),
         "USAGEBEAM_STRESS": "1" if stress else "0",
+        "USAGEBEAM_INSTALL_PATH": str(prefix / "share/gnome-shell/extensions" / UUID),
+        "WAYLAND_DISPLAY": "usagebeam-test",
     }
     # Never let inherited provider paths expose the real account to a test shell.
     for name in ("CODEX_HOME", "CLAUDE_CONFIG_DIR"):
         env.pop(name, None)
-    # Use locally installed fonts without copying or distributing licensed files.
+    # Exercise both a user-installed font and a system fallback without copying
+    # or distributing font files. The extension must inherit either choice.
+    font_request = "Noto Sans" if system_fonts else "SF Pro Text"
     font = run(
         ["fc-match", "-f", "%{file}", "SF Pro Text"], os.environ, check=True
     ).stdout
@@ -216,9 +220,15 @@ def smoke(source, archive, destination, scale=1, text_scale=1.0, *,
         f"{extra_fonts}</fontconfig>"
     )
     env["FONTCONFIG_FILE"] = str(font_config)
-    resolved_font = run(["fc-match", "-f", "%{family}", "SF Pro Text"], env, check=True).stdout
+    resolved_font = run(
+        ["fc-match", "-f", "%{family}", font_request], env, check=True
+    ).stdout
     if system_fonts and "SF Pro" in resolved_font:
         raise RuntimeError("System-font case still resolves SF Pro; font fallback was not isolated")
+    configured_font = resolved_font.split(",", 1)[0].strip()
+    if not configured_font:
+        raise RuntimeError(f"Could not resolve configured font: {font_request}")
+    env["USAGEBEAM_EXPECTED_FONT"] = configured_font
     run(
         [
             "gsettings",
@@ -226,6 +236,17 @@ def smoke(source, archive, destination, scale=1, text_scale=1.0, *,
             "org.gnome.desktop.interface",
             "scaling-factor",
             str(scale),
+        ],
+        env,
+        check=True,
+    )
+    run(
+        [
+            "gsettings",
+            "set",
+            "org.gnome.desktop.interface",
+            "font-name",
+            f"'{configured_font} 11'",
         ],
         env,
         check=True,
@@ -338,6 +359,16 @@ def smoke(source, archive, destination, scale=1, text_scale=1.0, *,
             raise RuntimeError(f"UI check failed: {results['error']}")
         if results["ok"]:
             print("PASS: private-shell UI assertions")
+        preferences = run(
+            ["gjs", "-m", str(source / "tests/shell/preferences.js")],
+            {**env, "GSETTINGS_BACKEND": "memory"},
+        )
+        if preferences.returncode:
+            raise RuntimeError(
+                "Preferences smoke test failed:\n"
+                f"{preferences.stdout}{preferences.stderr}"
+            )
+        print(preferences.stdout.strip())
         print(f"UI geometry and screenshots: {destination}")
         run(["gnome-extensions", "disable", TEST_UUID], env, check=True)
         cycles = 10 if stress else 1

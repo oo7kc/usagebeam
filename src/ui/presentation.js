@@ -4,12 +4,12 @@ const CURRENT_STATES = new Set(['ready', 'partial']);
 
 export function providerStatus(record, refreshing = false) {
     if (CURRENT_STATES.has(record?.limits?.status))
-        return 'LIVE';
+        return 'Live';
     if (CURRENT_STATES.has(record?.history?.status))
-        return 'LOCAL';
+        return 'Local';
     if (record?.limits?.status === 'stale' || record?.history?.status === 'stale')
-        return 'CACHED';
-    return refreshing ? 'SYNC' : 'SETUP';
+        return 'Cached';
+    return refreshing ? 'Sync' : 'Setup';
 }
 
 export function latestUpdate(record) {

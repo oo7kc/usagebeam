@@ -4,6 +4,21 @@ All notable UsageBeam changes are documented here.
 
 ## Unreleased
 
+### Added
+
+- Provider enablement, ordering, and default-provider controls in preferences.
+- Notification threshold, history retention, and safe saved-data controls.
+- Clear-data requests also discard in-memory snapshots before activity rebuilds.
+
+### Changed
+
+- UsageBeam now follows the configured GNOME system font while retaining
+  tabular figures for usage metrics.
+- Refined the panel, provider selector, quota meters, activity chart, model
+  totals, status colors, and responsive hierarchy around a shared Beam accent.
+- Refresh feedback and provider transitions remain compact and avoid animating
+  popup geometry.
+
 ## 2.0.0-alpha.3 - 2026-09-09
 
 ### Added

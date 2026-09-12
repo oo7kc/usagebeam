@@ -20,13 +20,17 @@ export default class UsageBeamExtension extends Extension {
         });
         this._indicator.attach(this._service);
         this._settingsIds = [];
-        this._settingsIds.push(this._settings.connect('changed::enabled-providers', () => {
+        const configureProviders = () => {
             this._service.configure();
             this._indicator.render();
             this._service.refreshAll();
-        }));
+        };
+        for (const key of ['enabled-providers', 'provider-order'])
+            this._settingsIds.push(this._settings.connect(`changed::${key}`, configureProviders));
         this._settingsIds.push(this._settings.connect('changed::default-provider', () => this._indicator.render()));
         this._settingsIds.push(this._settings.connect('changed::panel-position', () => this._placeIndicator()));
+        this._settingsIds.push(this._settings.connect('changed::clear-data-generation', () =>
+            this._service.clearSavedData()));
         this._settingsIds.push(this._settings.connect('changed::history-retention-days', () =>
             this._service.refreshAll(true)));
         this._service.refreshAll();

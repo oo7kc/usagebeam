@@ -1,6 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {isProvider, mergeRecord, record, section, validateRecord} from '../core/usage.js';
+import {mergeRecord, orderedEnabledProviders, record, section, validateRecord} from '../core/usage.js';
 import {ThresholdTracker} from '../core/notifications.js';
 import {commandSpec} from './commands.js';
 import {join, readJson, stateDirectory, writeJson} from './files.js';
@@ -68,7 +68,8 @@ export class UsageService {
     configure() {
         if (this._closed)
             return;
-        this._enabled = [...new Set(this._settings.get_strv('enabled-providers'))].filter(isProvider);
+        this._enabled = orderedEnabledProviders(this._settings.get_strv('enabled-providers'),
+            this._settings.get_strv('provider-order'));
         for (const [id, job] of this._jobs) {
             if (!this._enabled.includes(id)) {
                 job.cancel();
@@ -101,6 +102,20 @@ export class UsageService {
     refreshAll(force = false) {
         for (const id of this._enabled)
             this.refresh(id, force);
+    }
+
+    clearSavedData() {
+        if (this._closed)
+            return;
+        for (const job of this._jobs.values())
+            job.cancel();
+        this._jobs.clear();
+        this._attempts.clear();
+        this._failures.clear();
+        this._thresholds = new ThresholdTracker();
+        this._records = Object.fromEntries(this._enabled.map(id => [id, record(id)]));
+        this._emitChanged();
+        this.refreshAll(true);
     }
 
     async refresh(id, force = false) {
