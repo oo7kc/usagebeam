@@ -37,11 +37,11 @@ const io = {
     hasCommand(name) {
         try { findCommand(name); return true; } catch { return false; }
     },
-    scan(provider, suffixes, parser) {
+    scan(provider, suffixes, parser, options = {}) {
         const root = HISTORY_ROOTS[provider];
         if (!root)
             throw new Error(`Unsupported local history provider: ${provider}`);
-        return scanHistory(provider, suffixes.map(suffix => join(root, suffix)), parser, {retention});
+        return scanHistory(provider, suffixes.map(suffix => join(root, suffix)), parser, {...options, retention});
     },
     credentials(provider) {
         if (provider === 'claude')

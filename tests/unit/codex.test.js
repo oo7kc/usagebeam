@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {codexLimits, collectCodex, parseCodexEvent} from '../../src/providers/codex.js';
+import {codexLimits, codexOversizedRecordMayAffectUsage, collectCodex,
+    parseCodexEvent} from '../../src/providers/codex.js';
 
 const tokenEvent = (input, output, cache, total) => ({timestamp: '2026-09-06T12:00:00Z', type: 'event_msg', payload: {type: 'token_count',
     info: {total_token_usage: {input_tokens: input, output_tokens: output, cached_input_tokens: cache, total_tokens: total}}}});
@@ -61,6 +62,20 @@ test('record parsing tracks model and stable session identity', () => {
     const event = parseCodexEvent(tokenEvent(10, 2, 0, 12), state);
     assert.equal(event.model, 'model-b');
     assert.equal(event.session, 'native-session');
+});
+
+test('oversized Codex records are ignored only when their top-level type is known to carry no usage', () => {
+    const bytes = value => new TextEncoder().encode(value);
+    assert.equal(codexOversizedRecordMayAffectUsage(bytes(
+        '{"type":"compacted","payload":{"message":"summary"}}')), false);
+    assert.equal(codexOversizedRecordMayAffectUsage(bytes(
+        '{"timestamp":"2026-09-06T12:00:00Z","type":"response_item","payload":{}}')), false);
+    assert.equal(codexOversizedRecordMayAffectUsage(bytes(
+        '{"payload":{"type":"compacted"},"type":"event_msg"}')), true);
+    assert.equal(codexOversizedRecordMayAffectUsage(bytes(
+        '{"items":[{"type":"compacted"}],"type":"event_msg"}')), true);
+    assert.equal(codexOversizedRecordMayAffectUsage(bytes('{"type":')), true);
+    assert.equal(codexOversizedRecordMayAffectUsage('not bytes'), true);
 });
 
 test('local history survives missing account authentication and closes RPC', async () => {

@@ -2,6 +2,76 @@ import {localDate, number, record, section, windowUsage} from '../core/usage.js'
 
 const MAX_WINDOWS = 32;
 
+function jsonStringEnd(text, start) {
+    let escaped = false;
+    for (let index = start + 1; index < text.length; index++) {
+        if (escaped) {
+            escaped = false;
+        } else if (text[index] === '\\') {
+            escaped = true;
+        } else if (text[index] === '"') {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function topLevelString(text, property) {
+    const stack = [];
+    let expectsKey = false;
+    for (let index = 0; index < text.length; index++) {
+        const character = text[index];
+        if (character === '"') {
+            const end = jsonStringEnd(text, index);
+            if (end < 0)
+                return null;
+            if (stack.length === 1 && stack[0] === '{' && expectsKey) {
+                let key;
+                try { key = JSON.parse(text.slice(index, end + 1)); } catch { return null; }
+                let cursor = end + 1;
+                while (/\s/.test(text[cursor] ?? ''))
+                    cursor++;
+                if (text[cursor] !== ':')
+                    return null;
+                cursor++;
+                while (/\s/.test(text[cursor] ?? ''))
+                    cursor++;
+                if (key === property) {
+                    if (text[cursor] !== '"')
+                        return null;
+                    const valueEnd = jsonStringEnd(text, cursor);
+                    if (valueEnd < 0)
+                        return null;
+                    try { return JSON.parse(text.slice(cursor, valueEnd + 1)); } catch { return null; }
+                }
+                expectsKey = false;
+            }
+            index = end;
+        } else if (character === '{' || character === '[') {
+            stack.push(character);
+            if (stack.length === 1 && character === '{')
+                expectsKey = true;
+        } else if (character === '}' || character === ']') {
+            const expected = character === '}' ? '{' : '[';
+            if (stack.at(-1) !== expected)
+                return null;
+            stack.pop();
+            if (!stack.length)
+                return null;
+        } else if (stack.length === 1 && stack[0] === '{' && character === ',') {
+            expectsKey = true;
+        }
+    }
+    return null;
+}
+
+export function codexOversizedRecordMayAffectUsage(prefix) {
+    if (!(prefix instanceof Uint8Array))
+        return true;
+    const type = topLevelString(new TextDecoder().decode(prefix), 'type');
+    return type !== 'compacted' && type !== 'response_item';
+}
+
 function shortText(value, fallback = null, max = 80) {
     if (typeof value !== 'string')
         return fallback;
@@ -105,7 +175,8 @@ export async function collectCodex(io) {
     const now = io.now?.() ?? Date.now();
     const result = record('codex');
     result.capabilities = {limits: true, history: true, models: true};
-    result.history = io.scan('codex', ['sessions', 'archived_sessions'], parseCodexEvent);
+    result.history = io.scan('codex', ['sessions', 'archived_sessions'], parseCodexEvent,
+        {oversizedRecordMayAffectUsage: codexOversizedRecordMayAffectUsage});
     let rpc;
     try {
         rpc = io.codexClient();

@@ -4,7 +4,7 @@ import GLib from 'gi://GLib';
 import System from 'system';
 import {ThresholdTracker} from '../../src/core/notifications.js';
 import {scanHistory} from '../../src/services/history.js';
-import {parseCodexEvent} from '../../src/providers/codex.js';
+import {codexOversizedRecordMayAffectUsage, parseCodexEvent} from '../../src/providers/codex.js';
 import {join, readJson} from '../../src/services/files.js';
 import {RpcClient, runCommand} from '../../src/services/process.js';
 
@@ -80,6 +80,25 @@ async function run() {
         source.scan();
         const next = source.scan();
         assert(total(next) === 200, `Expected recovery to 200, got ${total(next)} (${next.status})`);
+    });
+    await test('oversized non-usage Codex records do not mark complete totals partial', () => {
+        const source = fixture('oversized-ignored');
+        const ignored = JSON.stringify({type: 'compacted', payload: {message: 'x'.repeat(5 * 1024 * 1024)}});
+        GLib.file_set_contents(source.path, `${event(100)}\n${ignored}\n${event(200)}\n`);
+        const result = scanHistory('codex', [source.root], parseCodexEvent, {
+            now,
+            cachePath: source.cachePath,
+            oversizedRecordMayAffectUsage: codexOversizedRecordMayAffectUsage,
+        });
+        assert(total(result) === 200 && result.status === 'ready',
+            `Known non-usage record produced ${result.status} history`);
+        const warm = scanHistory('codex', [source.root], parseCodexEvent, {
+            now,
+            cachePath: source.cachePath,
+            oversizedRecordMayAffectUsage: codexOversizedRecordMayAffectUsage,
+        });
+        assert(warm.status === 'ready' && warm.scannedFiles === 0,
+            'Ignored-record status was not stable in cache');
     });
     await test('growing in-place rewrite verifies the entire committed prefix', () => {
         const source = fixture('growing-rewrite');

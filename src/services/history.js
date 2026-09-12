@@ -3,7 +3,7 @@ import GLib from 'gi://GLib';
 import {aggregateEvents, recentDates, section} from '../core/usage.js';
 import {cacheDirectory, fingerprint, join, readJson, writeJson} from './files.js';
 
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 const MAX_DEPTH = 12;
 const MAX_FILES = 20000;
 const MAX_LINE_BYTES = 4 * 1024 * 1024;
@@ -88,12 +88,23 @@ function cachedFile(value, fallbackSession) {
     return {offset, size, stamp: value.stamp, fileId: value.fileId,
         digest: typeof value.digest === 'string' && /^[a-f0-9]{64}$/.test(value.digest) ? value.digest : null,
         skipping: value.skipping === true,
+        skippingRelevant: value.skippingRelevant !== false,
         state: parserState(value.state, fallbackSession), events: value.events, partial: value.partial === true};
 }
 
 function newFileState(fileId, session) {
-    return {offset: 0, size: 0, stamp: '', fileId, digest: null, skipping: false,
+    return {offset: 0, size: 0, stamp: '', fileId, digest: null, skipping: false, skippingRelevant: true,
         state: {session}, events: {}, partial: false};
+}
+
+function oversizedRecordIsRelevant(bytes, classifier) {
+    try {
+        // A provider may clear the warning only when it can prove from this
+        // bounded prefix that its parser would ignore the complete record.
+        return classifier(bytes) !== false;
+    } catch {
+        return true;
+    }
 }
 
 function hashPrefix(input, length, deadline) {
@@ -135,10 +146,12 @@ function sanitizedEvent(event, provider, stored = false) {
         session: stored ? event.session : privateIdentity(provider, event.session)};
 }
 
-export function scanHistory(id, roots, parse, {retention = 30, now = Date.now(), cachePath = null} = {}) {
+export function scanHistory(id, roots, parse, {retention = 30, now = Date.now(), cachePath = null,
+    oversizedRecordMayAffectUsage = () => true} = {}) {
     if (!Number.isSafeInteger(retention) || retention < 7 || retention > 90 ||
         !Number.isSafeInteger(now) || now <= 0 || !Array.isArray(roots) || !roots.length ||
         roots.some(root => typeof root !== 'string' || !root) || typeof parse !== 'function' ||
+        typeof oversizedRecordMayAffectUsage !== 'function' ||
         (cachePath !== null && (typeof cachePath !== 'string' || !cachePath)))
         throw new Error('Invalid history scan options');
     const cutoff = recentDates(now, retention)[0];
@@ -205,8 +218,11 @@ export function scanHistory(id, roots, parse, {retention = 30, now = Date.now(),
                     offset += i - start + 1;
                     start = i + 1;
                     if (previous.skipping || line.length > MAX_LINE_BYTES) {
+                        const relevant = previous.skipping ? previous.skippingRelevant :
+                            oversizedRecordIsRelevant(line.subarray(0, 65536), oversizedRecordMayAffectUsage);
                         previous.skipping = false;
-                        previous.partial = true;
+                        previous.skippingRelevant = true;
+                        previous.partial ||= relevant;
                         continue;
                     }
                     try {
@@ -237,8 +253,11 @@ export function scanHistory(id, roots, parse, {retention = 30, now = Date.now(),
                     // Consume, rather than retry, oversized lines. Persist the skip
                     // state across deadlines and appends, never treating their suffix
                     // as a new JSON record. Keep processing later complete records.
-                    previous.partial = true;
+                    const relevant = previous.skipping ? previous.skippingRelevant :
+                        oversizedRecordIsRelevant(tail.subarray(0, 65536), oversizedRecordMayAffectUsage);
+                    previous.partial ||= relevant;
                     previous.skipping = true;
+                    previous.skippingRelevant = relevant;
                     checksum.update(tail);
                     offset += tail.length;
                     tail = new Uint8Array();

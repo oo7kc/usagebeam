@@ -1,7 +1,6 @@
 // Loaded only by tools/smoke-shell.py in its isolated, synthetic desktop.
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -16,10 +15,11 @@ const bounds = actor => {
     const [width, height] = actor.get_transformed_size();
     return {x, y, width, height};
 };
-// Clutter reports logical sizes; Pango pixel sizes can include monitor scale.
 const textWidth = actor => actor.clutter_text.get_preferred_width(-1)[1];
-const textBaseline = actor => bounds(actor.clutter_text).y +
-    actor.clutter_text.get_layout().get_baseline() / Pango.SCALE;
+const midpoint = actor => {
+    const box = bounds(actor);
+    return box.y + box.height / 2;
+};
 const assert = (condition, message) => {
     if (!condition)
         throw new Error(message);
@@ -83,11 +83,12 @@ export default class UsageBeamUITest extends Extension {
         const value = bounds(indicator._panelValue);
         const separator = bounds(indicator._panelSeparator);
         const reset = bounds(indicator._panelReset);
-        const providerBaseline = textBaseline(indicator._panelProvider);
-        for (const actor of [indicator._panelValue, indicator._panelReset]) {
-            const offset = textBaseline(actor) - providerBaseline;
-            assert(Math.abs(offset) <= 1,
-                `${position}: panel text baseline differs by ${offset}px`);
+        const rowMidpoint = midpoint(indicator._panelProvider);
+        for (const actor of [indicator._panelIcon.get_child(), indicator._panelValue,
+            indicator._panelSeparator, indicator._panelReset]) {
+            const offset = midpoint(actor) - rowMidpoint;
+            assert(Math.abs(offset) <= scale,
+                `${position}: panel actor midpoint differs by ${offset}px`);
         }
         assert(value.x - provider.x - provider.width <= 6 * scale,
             `${position}: provider and percentage are spaced too far apart`);

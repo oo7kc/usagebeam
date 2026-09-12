@@ -33,7 +33,7 @@ GLib.file_set_contents(fixture, `${text}${event(180)}\n{"partial":`);
 const third = scanHistory('codex', [sessions], parseCodexEvent, {now, cachePath});
 assert(third.days.at(-1).total === 180, 'append must count delta only');
 const cache = readJson(cachePath);
-assert(cache.version === 5, 'versioned cache');
+assert(cache.version === 6, 'versioned cache');
 assert(!JSON.stringify(cache).includes('synthetic'), 'session identity must be sanitized in cache');
 assert(third.days.at(-1).sessions === 1, 'resumed scans must retain one stable private session identity');
 const privateDirectory = join(scratch, 'private-state');
