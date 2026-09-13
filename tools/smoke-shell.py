@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -177,7 +178,8 @@ def seed_usage(destination):
 
 
 def smoke(source, archive, destination, scale=1, text_scale=1.0, *,
-          width=1280, height=1024, system_fonts=False, stress=False):
+          width=1280, height=1024, system_fonts=False, stress=False,
+          font_description=None):
     destination.mkdir(parents=True, exist_ok=True)
     prefix = destination / "install"
     install(source, archive, prefix, destination)
@@ -230,10 +232,12 @@ def smoke(source, archive, destination, scale=1, text_scale=1.0, *,
     ).stdout
     if system_fonts and "SF Pro" in resolved_font:
         raise RuntimeError("System-font case still resolves SF Pro; font fallback was not isolated")
-    configured_font = resolved_font.split(",", 1)[0].strip()
-    if not configured_font:
+    resolved_family = resolved_font.split(",", 1)[0].strip()
+    if not resolved_family:
         raise RuntimeError(f"Could not resolve configured font: {font_request}")
-    env["USAGEBEAM_EXPECTED_FONT"] = configured_font
+    configured_font = font_description or f"{resolved_family} 11"
+    expected_font = re.split(r"\s+\d+(?:\.\d+)?(?:\s|$)", configured_font, maxsplit=1)[0]
+    env["USAGEBEAM_EXPECTED_FONT"] = expected_font
     run(
         [
             "gsettings",
@@ -251,7 +255,7 @@ def smoke(source, archive, destination, scale=1, text_scale=1.0, *,
             "set",
             "org.gnome.desktop.interface",
             "font-name",
-            f"'{configured_font} 11'",
+            f"'{configured_font}'",
         ],
         env,
         check=True,
@@ -468,6 +472,10 @@ if __name__ == "__main__":
         default=1.0,
         help="Accessibility text scale",
     )
+    parser.add_argument(
+        "--font",
+        help="GNOME font description to exercise, for example 'SF Pro 10 @opsz=17'",
+    )
     args = parser.parse_args()
     if args.case and not args.matrix:
         parser.error("--case requires --matrix")
@@ -482,4 +490,5 @@ if __name__ == "__main__":
         else Path(tempfile.mkdtemp(prefix="usagebeam-shell-")),
         args.scale,
         args.text_scale,
+        font_description=args.font,
     )

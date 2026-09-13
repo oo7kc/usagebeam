@@ -3,6 +3,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
+import Pango from 'gi://Pango';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {runStress} from './stress.js';
@@ -20,11 +21,11 @@ const midpoint = actor => {
     const box = bounds(actor);
     return box.y + box.height / 2;
 };
-const inkMidpoint = actor => {
+const textBaseline = actor => {
     const text = actor.clutter_text;
-    const [ink, logical] = text.get_layout().get_pixel_extents();
+    const [, logical] = text.get_layout().get_pixel_extents();
     const ratio = text.get_preferred_height(-1)[1] / logical.height;
-    return bounds(text).y + (ink.y + ink.height / 2) * ratio;
+    return bounds(text).y + text.get_layout().get_baseline() / Pango.SCALE * ratio;
 };
 const assert = (condition, message) => {
     if (!condition)
@@ -96,11 +97,10 @@ export default class UsageBeamUITest extends Extension {
             assert(Math.abs(offset) <= scale,
                 `${position}: panel actor midpoint differs by ${offset}px`);
         }
-        for (const actor of [indicator._panelProvider, indicator._panelValue, indicator._panelReset]) {
-            const offset = inkMidpoint(actor) - midpoint(indicator._panelIcon.get_child());
-            assert(Math.abs(offset) <= 1,
-                `${position}: ${actor.text} visible glyphs are off-center by ${offset}px`);
-        }
+        const baseline = textBaseline(indicator._panelValue);
+        for (const actor of [indicator._panelProvider, indicator._panelReset])
+            assert(Math.abs(textBaseline(actor) - baseline) <= 1,
+                `${position}: ${actor.text} does not share the metric baseline`);
         assert(value.x - provider.x - provider.width <= 6 * scale,
             `${position}: provider and percentage are spaced too far apart`);
         assert(Math.abs(separator.x - value.x - value.width -

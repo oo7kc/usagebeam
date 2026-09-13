@@ -10,11 +10,10 @@ import {NAMES, recentDates} from '../core/usage.js';
 import {age, compactTokens, modelName, tokens} from '../core/format.js';
 import {quotaSeverity} from '../core/thresholds.js';
 import {initialLayout, nextLayout, pageSlice} from './layoutPolicy.js';
-import {PanelLabel} from './panelLabel.js';
 import {historyOverview, latestUpdate, panelQuota, periodDays, providerStatus,
     quotaPresentation} from './presentation.js';
 import {actionButton, dayChart, disclosureButton, label, meter, modelMeter,
-    limitRow, pageControls, providerIcon, providerTab, separatorDot} from './widgets.js';
+    limitRow, metricLabel, pageControls, providerIcon, providerTab, separatorDot} from './widgets.js';
 
 const TAB_NAMES = {claude: 'Claude'};
 const PROVIDER_MARKS = {codex: '>_', claude: '✦'};
@@ -35,11 +34,10 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
         this._panelStatus = new St.BoxLayout({style_class: 'usagebeam-panel-status',
             x_expand: true, x_align: Clutter.ActorAlign.START});
         this._panelIcon = new St.Bin({style_class: 'usagebeam-panel-icon-slot', y_align: Clutter.ActorAlign.CENTER});
-        this._panelProvider = new PanelLabel('UsageBeam', 'usagebeam-panel-provider');
+        this._panelProvider = label('UsageBeam', 'usagebeam-panel-provider');
         this._panelProvider.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-        this._panelValue = new PanelLabel('—', 'usagebeam-panel-value');
-        this._panelReset = new PanelLabel('—', 'usagebeam-panel-reset');
-        this._panelValue.clutter_text.ellipsize = this._panelReset.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        this._panelValue = metricLabel('—', 'usagebeam-panel-value');
+        this._panelReset = metricLabel('—', 'usagebeam-panel-reset');
         this._panelSeparator = separatorDot('usagebeam-panel-separator');
         this._panelMetrics = new St.BoxLayout({style_class: 'usagebeam-panel-metrics',
             y_align: Clutter.ActorAlign.CENTER});
@@ -236,10 +234,10 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
                 label(PROVIDER_MARKS[id] ?? 'AI', 'usagebeam-panel-mark'));
             const metrics = new St.BoxLayout({style_class: 'usagebeam-panel-metrics',
                 y_align: Clutter.ActorAlign.CENTER});
-            metrics.add_child(new PanelLabel(sample, 'usagebeam-panel-value'));
+            metrics.add_child(metricLabel(sample, 'usagebeam-panel-value'));
             metrics.add_child(separatorDot('usagebeam-panel-separator'));
-            metrics.add_child(new PanelLabel(id === 'opencode' ? '7d' : '99d 23h', 'usagebeam-panel-reset'));
-            for (const actor of [icon, new PanelLabel(TAB_NAMES[id] ?? NAMES[id], 'usagebeam-panel-provider'), metrics])
+            metrics.add_child(metricLabel(id === 'opencode' ? '7d' : '99d 23h', 'usagebeam-panel-reset'));
+            for (const actor of [icon, label(TAB_NAMES[id] ?? NAMES[id], 'usagebeam-panel-provider'), metrics])
                 row.add_child(actor);
             this._panelSizer.add_child(row);
         }

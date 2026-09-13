@@ -27,8 +27,8 @@ All notable UsageBeam changes are documented here.
 
 ### Fixed
 
-- Provider names and panel statistics now center their visible glyphs against
-  the logo, including when the configured font or display scale changes.
+- Provider names and panel statistics now share the font's natural baseline,
+  including when the configured font or display scale changes.
 - Oversized Codex records unrelated to token usage no longer cause a persistent
   incomplete-history warning.
 - Local-only providers retain saved activity during temporary failures and
