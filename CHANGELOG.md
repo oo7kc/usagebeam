@@ -27,7 +27,7 @@ All notable UsageBeam changes are documented here.
 
 ### Fixed
 
-- Provider names and panel statistics now share the font's natural baseline,
+- Provider names now align optically with the smaller panel statistics,
   including when the configured font or display scale changes.
 - Oversized Codex records unrelated to token usage no longer cause a persistent
   incomplete-history warning.

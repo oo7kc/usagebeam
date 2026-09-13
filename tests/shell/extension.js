@@ -98,9 +98,11 @@ export default class UsageBeamUITest extends Extension {
                 `${position}: panel actor midpoint differs by ${offset}px`);
         }
         const baseline = textBaseline(indicator._panelValue);
-        for (const actor of [indicator._panelProvider, indicator._panelReset])
-            assert(Math.abs(textBaseline(actor) - baseline) <= 1,
-                `${position}: ${actor.text} does not share the metric baseline`);
+        assert(Math.abs(textBaseline(indicator._panelReset) - baseline) <= 1,
+            `${position}: reset time does not share the metric baseline`);
+        const providerLift = baseline - textBaseline(indicator._panelProvider);
+        assert(Math.abs(providerLift - scale) <= 1,
+            `${position}: provider optical lift is ${providerLift}px`);
         assert(value.x - provider.x - provider.width <= 6 * scale,
             `${position}: provider and percentage are spaced too far apart`);
         assert(Math.abs(separator.x - value.x - value.width -

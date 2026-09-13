@@ -35,6 +35,9 @@ export const UsageBeamIndicator = GObject.registerClass(class UsageBeamIndicator
             x_expand: true, x_align: Clutter.ActorAlign.START});
         this._panelIcon = new St.Bin({style_class: 'usagebeam-panel-icon-slot', y_align: Clutter.ActorAlign.CENTER});
         this._panelProvider = label('UsageBeam', 'usagebeam-panel-provider');
+        // The provider is slightly larger than the metrics. Raise its actor by
+        // one logical pixel so their visible text centers align in panel fonts.
+        this._panelProvider.translation_y = -1;
         this._panelProvider.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         this._panelValue = metricLabel('—', 'usagebeam-panel-value');
         this._panelReset = metricLabel('—', 'usagebeam-panel-reset');
