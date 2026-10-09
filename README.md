@@ -22,7 +22,7 @@ preferences, accessibility, and lifecycle conventions.
   calendar.
 - Seven-day local activity chart and per-model token totals.
 - Independent live, local, cached, syncing, and setup states.
-- Light and dark surfaces derived from the active GNOME accent color.
+- System light and dark surfaces compatible with configured popup blur.
 - Private local storage with no prompt, response, transcript, or credential
   retention.
 
@@ -146,5 +146,8 @@ that migration.
 gnome-extensions disable usagebeam@oo7kc.github.io
 gnome-extensions uninstall usagebeam@oo7kc.github.io
 ```
+
+For architecture, code conventions, and verification commands, see
+[Development](docs/development.md).
 
 UsageBeam is licensed under the [MIT License](LICENSE).

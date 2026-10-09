@@ -1,8 +1,8 @@
-import {resetCountdown, resetTime} from '../core/format.js';
+import {formatResetCountdown, formatResetTime} from '../core/format.js';
 
 const CURRENT_STATES = new Set(['ready', 'partial']);
 
-export function providerStatus(record, refreshing = false) {
+export function getProviderStatus(record, refreshing = false) {
     if (CURRENT_STATES.has(record?.limits?.status))
         return 'Live';
     if (CURRENT_STATES.has(record?.history?.status))
@@ -12,13 +12,13 @@ export function providerStatus(record, refreshing = false) {
     return refreshing ? 'Sync' : 'Setup';
 }
 
-export function latestUpdate(record) {
+export function getLatestUpdate(record) {
     const timestamps = [record?.limits?.updatedAt, record?.history?.updatedAt]
         .filter(value => Number.isFinite(value) && value > 0);
     return timestamps.length ? Math.max(...timestamps) : null;
 }
 
-export function periodDays(period) {
+export function getPeriodDays(period) {
     const start = Date.parse(`${period?.start ?? ''}T00:00:00Z`);
     const end = Date.parse(`${period?.end ?? ''}T00:00:00Z`);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end < start)
@@ -26,7 +26,7 @@ export function periodDays(period) {
     return Math.round((end - start) / 86400000) + 1;
 }
 
-export function historyOverview(history) {
+export function getHistoryOverview(history) {
     const days = Array.isArray(history?.days) ? history.days : [];
     const models = Array.isArray(history?.models) ? history.models : [];
     const values = days.length ? days : models;
@@ -36,13 +36,13 @@ export function historyOverview(history) {
     const total = values.reduce((sum, item) => sum +
         (Number.isFinite(item?.total) ? item.total : 0), 0);
     return {
-        days: periodDays(history.period),
+        days: getPeriodDays(history.period),
         scope: history.scope === 'account' ? 'account' : 'local',
         total,
     };
 }
 
-export function quotaName(window) {
+export function getQuotaName(window) {
     const source = `${window?.id ?? ''} ${window?.label ?? ''}`.toLowerCase();
     if (source.includes('five-hour') || source.includes('5 hours'))
         return '5H Session';
@@ -52,21 +52,21 @@ export function quotaName(window) {
     return String(window?.label ?? 'Usage limit');
 }
 
-export function quotaPresentation(window, now = Date.now()) {
+export function getQuotaPresentation(window, now = Date.now()) {
     if (!window)
         return null;
     if (window.unlimited)
-        return {name: quotaName(window), value: 'Unlimited', reset: null};
+        return {name: getQuotaName(window), value: 'Unlimited', reset: null};
     if (!Number.isFinite(window.usedPercent))
         return null;
     return {
-        name: quotaName(window),
+        name: getQuotaName(window),
         value: `${Math.round(window.usedPercent)}%`,
-        reset: resetTime(window.resetsAt, now),
+        reset: formatResetTime(window.resetsAt, now),
     };
 }
 
-export function panelQuota(record, now = Date.now()) {
+export function getPanelQuota(record, now = Date.now()) {
     if (!CURRENT_STATES.has(record?.limits?.status))
         return null;
     let window = null;
@@ -85,11 +85,11 @@ export function panelQuota(record, now = Date.now()) {
         return null;
     return {
         percent: Math.round(window.usedPercent),
-        reset: resetCountdown(window.resetsAt, now),
+        reset: formatResetCountdown(window.resetsAt, now),
     };
 }
 
-export function chartBarGeometry(value, maximum, width, height, inset = 4) {
+export function getChartBarGeometry(value, maximum, width, height, inset = 4) {
     const availableWidth = Math.max(0, width - inset * 2);
     const availableHeight = Math.max(0, height);
     const ratio = maximum > 0 && value > 0 ? Math.min(1, value / maximum) : 0;

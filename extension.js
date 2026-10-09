@@ -1,6 +1,6 @@
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {notificationBody} from './src/core/notifications.js';
+import {formatNotificationBody} from './src/core/notifications.js';
 import {UsageBeamIndicator} from './src/ui/indicator.js';
 import {clearIndicatorPlacement, placeIndicator} from './src/ui/panelPlacement.js';
 import {migrateLegacyInstall} from './src/services/migration.js';
@@ -13,10 +13,15 @@ export default class UsageBeamExtension extends Extension {
         this._indicator = new UsageBeamIndicator(this._settings, this.path, () => this.openPreferences());
         Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'center');
         this._placeIndicator();
-        this._service = new UsageService(this._settings, this.path, () => this._indicator?.render(), alerts => {
-            const message = notificationBody(alerts);
-            if (message)
-                Main.notify('UsageBeam usage alert', message);
+        this._service = new UsageService({
+            settings: this._settings,
+            extensionPath: this.path,
+            onChanged: () => this._indicator?.render(),
+            onAlerts: alerts => {
+                const message = formatNotificationBody(alerts);
+                if (message)
+                    Main.notify('UsageBeam usage alert', message);
+            },
         });
         this._indicator.attach(this._service);
         this._settingsIds = [];

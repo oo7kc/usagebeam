@@ -1,15 +1,16 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import System from 'system';
-import {mergeRecord, record, validateRecord} from '../../src/core/usage.js';
+import {createUsageRecord, mergeUsageRecords} from '../../src/core/usage.js';
+import {validateUsageRecord} from '../../src/core/usageValidation.js';
+import {buildPath, clearDerivedData, readJson, writeJson} from '../../src/services/files.js';
 import {readOpenCodeHistory} from '../../src/services/opencodeHistory.js';
-import {clearDerivedData, join, readJson, writeJson} from '../../src/services/files.js';
 import {runCommand} from '../../src/services/process.js';
 
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const scratch = GLib.dir_make_tmp('usagebeam-opencode-XXXXXX');
-const path = join(scratch, 'opencode.db');
-const cachePath = join(scratch, 'history-opencode.json');
+const path = buildPath(scratch, 'opencode.db');
+const cachePath = buildPath(scratch, 'history-opencode.json');
 const script = Gio.File.new_for_uri(import.meta.url).get_parent().get_parent().get_parent()
     .get_child('src/collector/opencode_history.py').get_path();
 const now = new Date('2026-09-12T12:00:00').getTime();
@@ -48,23 +49,23 @@ c.commit(); c.close()`, path]);
     assert((await readOpenCodeHistory(script, options)).scannedFiles === 1, 'Invalid cache must rebuild');
     assert((await readOpenCodeHistory(script, {...options, now: now + 86400000})).period.end === '2026-09-13',
         'Calendar rollover must invalidate the aggregate cache');
-    assert((await readOpenCodeHistory(script, {...options, cachePath: join(scratch, 'missing-cache.json'),
-        path: join(scratch, 'absent.db')})).status === 'unsupported', 'Absent initial source must be explicit');
-    const renamed = join(scratch, 'saved.db');
+    assert((await readOpenCodeHistory(script, {...options, cachePath: buildPath(scratch, 'missing-cache.json'),
+        path: buildPath(scratch, 'absent.db')})).status === 'unsupported', 'Absent initial source must be explicit');
+    const renamed = buildPath(scratch, 'saved.db');
     Gio.File.new_for_path(path).move(Gio.File.new_for_path(renamed), Gio.FileCopyFlags.NONE, null, null);
     const unavailable = await readOpenCodeHistory(script, options);
     assert(unavailable.status === 'unavailable', 'Missing previous source must preserve saved activity');
-    const previous = record('opencode');
+    const previous = createUsageRecord('opencode');
     previous.capabilities = {limits: false, history: true, models: true};
     previous.history = first;
     const next = {...previous, history: unavailable};
-    assert(validateRecord(mergeRecord(previous, next), 'opencode').history.status === 'stale', 'Failure must retain valid saved activity');
+    assert(validateUsageRecord(mergeUsageRecords(previous, next), 'opencode').history.status === 'stale', 'Failure must retain valid saved activity');
     Gio.File.new_for_path(renamed).move(Gio.File.new_for_path(path), Gio.FileCopyFlags.NONE, null, null);
     const cancelled = new Gio.Cancellable();
     cancelled.cancel();
     const stopped = await readOpenCodeHistory(script, {...options,
-        cachePath: join(scratch, 'cancelled.json'), cancellable: cancelled});
-    assert(stopped.status === 'unavailable' && !Gio.File.new_for_path(join(scratch, 'cancelled.json')).query_exists(null),
+        cachePath: buildPath(scratch, 'cancelled.json'), cancellable: cancelled});
+    assert(stopped.status === 'unavailable' && !Gio.File.new_for_path(buildPath(scratch, 'cancelled.json')).query_exists(null),
         'Cancellation must not commit a new cache');
     clearDerivedData({state: scratch, cache: scratch});
     assert(Gio.File.new_for_path(path).query_exists(null), 'Clearing UsageBeam data must preserve the OpenCode database');

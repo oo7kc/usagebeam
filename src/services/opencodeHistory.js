@@ -1,8 +1,10 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {record, recentDates, section, validateRecord} from '../core/usage.js';
-import {commandSpec} from './commands.js';
-import {cacheDirectory, fingerprint, join, readJson, writeJson} from './files.js';
+import {getRecentDates} from '../core/dates.js';
+import {createUsageRecord, createUsageSection} from '../core/usage.js';
+import {validateUsageRecord} from '../core/usageValidation.js';
+import {createCommandSpec} from './commands.js';
+import {buildPath, cacheDirectory, fingerprint, readJson, writeJson} from './files.js';
 import {runCommand} from './process.js';
 
 function stamp(path) {
@@ -17,30 +19,34 @@ function stamp(path) {
 }
 
 function validHistory(history) {
-    const value = record('opencode');
+    const value = createUsageRecord('opencode');
     value.capabilities = {limits: false, history: true, models: true};
     value.history = history;
-    return validateRecord(value, 'opencode').history;
+    return validateUsageRecord(value, 'opencode').history;
 }
 
 export async function readOpenCodeHistory(script, {cancellable = null, now = Date.now(), path = null,
     cachePath = null} = {}) {
-    const root = join(GLib.get_user_data_dir(), 'opencode');
+    const root = buildPath(GLib.get_user_data_dir(), 'opencode');
     const configured = path ?? GLib.getenv('OPENCODE_DB') ?? 'opencode.db';
-    const database = GLib.path_is_absolute(configured) ? configured : join(root, configured);
-    const missing = record('opencode').history;
+    const database = GLib.path_is_absolute(configured) ? configured : buildPath(root, configured);
+    const missing = createUsageRecord('opencode').history;
     const identity = fingerprint(database);
-    const destination = cachePath ?? join(cacheDirectory(), 'history-opencode.json');
+    const destination = cachePath ?? buildPath(cacheDirectory(), 'history-opencode.json');
     const cached = readJson(destination, null, 256 * 1024);
     let saved = null;
     if (cached?.identity === identity) {
-        try { saved = validHistory(cached.history); } catch { /* Rebuild invalid cache contents. */ }
+        try {
+            saved = validHistory(cached.history);
+        } catch {
+            /* Rebuild invalid cache contents. */
+        }
     }
     if (configured === ':memory:' || !stamp(database))
-        return {...missing, ...section(saved ? 'unavailable' : 'unsupported', saved
+        return {...missing, ...createUsageSection(saved ? 'unavailable' : 'unsupported', saved
             ? 'The OpenCode database is temporarily unavailable.'
             : 'No local OpenCode database found. Run a session in OpenCode to get started.')};
-    const signature = () => fingerprint(JSON.stringify([1, database, recentDates(now, 1)[0],
+    const signature = () => fingerprint(JSON.stringify([1, database, getRecentDates(now, 1)[0],
         new Date(now).getTimezoneOffset(),
         stamp(database), stamp(`${database}-wal`)]));
     const before = signature();
@@ -50,15 +56,19 @@ export async function readOpenCodeHistory(script, {cancellable = null, now = Dat
         saved.updatedAt <= now && now - saved.updatedAt < 300000)
         return {...saved, updatedAt: now, scannedFiles: 0};
     try {
-        const output = await runCommand(commandSpec('python3', ['-B', script, database, String(now)]),
+        const output = await runCommand(createCommandSpec('python3', ['-B', script, database, String(now)]),
             {cancellable, timeout: 18000, maxOutputBytes: 256 * 1024});
         const history = validHistory({...JSON.parse(output), scannedFiles: 1});
         if (history.status === 'ready' && before === signature()) {
-            try { writeJson(destination, {identity, signature: before, history}); } catch { /* Current usage remains available. */ }
+            try {
+                writeJson(destination, {identity, signature: before, history});
+            } catch {
+                /* Current usage remains available. */
+            }
         }
         return history;
     } catch (error) {
-        return {...missing, ...section('unavailable', error.code === 'NOT_FOUND'
+        return {...missing, ...createUsageSection('unavailable', error.code === 'NOT_FOUND'
             ? 'Python 3.11 or newer with SQLite support is required to read OpenCode activity.'
             : 'OpenCode activity could not be refreshed. Try again shortly.')};
     }

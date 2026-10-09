@@ -16,6 +16,23 @@ All notable UsageBeam changes are documented here.
 
 ### Changed
 
+- Model names and period/source metadata use stronger weights, and the Activity
+  disclosure uses a more compact height and padding.
+- Spare panel width is shared evenly around the readout so short values retain
+  balanced end padding without shifting the calendar.
+- Model totals use a compact two-column list with a quieter period and source
+  label instead of progress tracks.
+- Panel text shares one size and baseline, with native foreground colors,
+  a subdued reset timer, and theme-aware colors for high quota usage.
+- Calendar-adjacent placement centers the combined clock and UsageBeam group
+  on its monitor, including when side docks offset the desktop work area.
+- The popup inherits GNOME's system surface colors, border, and shadow, allowing
+  configured popup blur to style it without a custom background tint.
+- Refactored all runtime layers around focused modules and explicit names,
+  with shared provider metadata, separate record validation and aggregation,
+  collector context, snapshot storage, RPC transport, and panel readout.
+- Documented development conventions and added named-import, dependency-cycle,
+  and Python syntax checks to repository verification.
 - UsageBeam now follows the configured GNOME system font while retaining
   tabular figures for usage metrics.
 - Refined the panel, provider selector, quota meters, activity chart, model

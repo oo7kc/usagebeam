@@ -1,6 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {join} from './files.js';
+import {buildPath} from './files.js';
 
 const STATIC_DIRECTORIES = [
     '.local/bin',
@@ -76,7 +76,7 @@ function versionedCommand(root, suffix, name) {
         while ((info = iterator.next_file(null))) {
             if (info.get_is_symlink() || info.get_file_type() !== Gio.FileType.DIRECTORY)
                 continue;
-            const path = executable(join(root, info.get_name(), ...suffix, name));
+            const path = executable(buildPath(root, info.get_name(), ...suffix, name));
             if (path)
                 candidates.push({version: info.get_name(), path});
         }
@@ -99,13 +99,13 @@ export function findCommand(name, {home = GLib.get_home_dir(), usePath = true} =
         return found;
 
     for (const directory of STATIC_DIRECTORIES) {
-        const path = executable(join(home, directory, name));
+        const path = executable(buildPath(home, directory, name));
         if (path)
             return path;
     }
 
     for (const [directory, suffix] of VERSIONED_DIRECTORIES) {
-        const path = versionedCommand(join(home, directory), suffix, name);
+        const path = versionedCommand(buildPath(home, directory), suffix, name);
         if (path)
             return path;
     }
@@ -115,7 +115,7 @@ export function findCommand(name, {home = GLib.get_home_dir(), usePath = true} =
     throw error;
 }
 
-export function commandSpec(name, args = [], {runtimes = [], ...options} = {}) {
+export function createCommandSpec(name, args = [], {runtimes = [], ...options} = {}) {
     if (!Array.isArray(args) || args.some(value => typeof value !== 'string' &&
         (typeof value !== 'number' || !Number.isFinite(value))))
         throw new Error('Command arguments must be strings or numbers');

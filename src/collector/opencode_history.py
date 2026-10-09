@@ -12,12 +12,33 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-MAX_ROWS = 200_000
-MAX_SAFE = 2**53 - 1
-FIELDS = ("input", "output", "cacheRead", "cacheWrite")
+MAX_HISTORY_ROWS = 200_000
+MAX_SAFE_INTEGER = 2**53 - 1
+TOKEN_FIELDS = ("input", "output", "cacheRead", "cacheWrite")
 
 
-def empty(status, message):
+ASSISTANT_USAGE_QUERY = """
+    SELECT session_id, time_created,
+           json_valid(data),
+           json_extract(CASE WHEN json_valid(data) THEN data END, '$.role'),
+           json_extract(CASE WHEN json_valid(data) THEN data END, '$.modelID'),
+           json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.input'),
+           json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.output'),
+           json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.reasoning'),
+           json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.cache.read'),
+           json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.cache.write'),
+           json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.input') IN ('integer', 'real') AND
+           json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.output') IN ('integer', 'real') AND
+           json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.cache.read') IN ('integer', 'real') AND
+           json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.cache.write') IN ('integer', 'real') AND
+           coalesce(json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.reasoning'), 'integer') IN ('integer', 'real')
+      FROM message
+     WHERE time_created >= ? AND time_created <= ?
+     LIMIT ?
+"""
+
+
+def create_empty_history(status, message):
     return dict(
         status=status,
         message=message,
@@ -30,15 +51,20 @@ def empty(status, message):
     )
 
 
-def count(value):
+def parse_token_count(value):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("Unknown token count")
-    if not math.isfinite(value) or value < 0 or value > MAX_SAFE or value != int(value):
+    if (
+        not math.isfinite(value)
+        or value < 0
+        or value > MAX_SAFE_INTEGER
+        or value != int(value)
+    ):
         raise ValueError("Invalid token count")
     return int(value)
 
 
-def read_history(path, now, *, max_rows=MAX_ROWS, seconds=15):
+def read_history(path, now, *, max_rows=MAX_HISTORY_ROWS, seconds=15):
     today = datetime.fromtimestamp(now / 1000).date()
     dates = [
         (today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)
@@ -61,64 +87,46 @@ def read_history(path, now, *, max_rows=MAX_ROWS, seconds=15):
         connection.execute("BEGIN")
         columns = {row[1] for row in connection.execute("PRAGMA table_info(message)")}
         if not {"id", "session_id", "time_created", "data"}.issubset(columns):
-            return empty(
+            return create_empty_history(
                 "unsupported", "This OpenCode history format is not supported yet."
             )
         # Current OpenCode v1 assistant messages already sum their step usage.
         # Counting the part table as well would duplicate those tokens.
-        query = """
-            SELECT session_id, time_created,
-                   json_valid(data),
-                   json_extract(CASE WHEN json_valid(data) THEN data END, '$.role'),
-                   json_extract(CASE WHEN json_valid(data) THEN data END, '$.modelID'),
-                   json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.input'),
-                   json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.output'),
-                   json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.reasoning'),
-                   json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.cache.read'),
-                   json_extract(CASE WHEN json_valid(data) THEN data END, '$.tokens.cache.write'),
-                   json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.input') IN ('integer', 'real') AND
-                   json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.output') IN ('integer', 'real') AND
-                   json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.cache.read') IN ('integer', 'real') AND
-                   json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.cache.write') IN ('integer', 'real') AND
-                   coalesce(json_type(CASE WHEN json_valid(data) THEN data END, '$.tokens.reasoning'), 'integer') IN ('integer', 'real')
-              FROM message
-             WHERE time_created >= ? AND time_created <= ?
-             LIMIT ?
-        """
         for index, row in enumerate(
-            connection.execute(query, (cutoff, now, max_rows + 1))
+            connection.execute(ASSISTANT_USAGE_QUERY, (cutoff, now, max_rows + 1))
         ):
             if index >= max_rows or time.monotonic() >= deadline:
                 partial = True
                 break
             (
-                session,
-                created,
-                valid,
+                session_id,
+                created_at_ms,
+                is_valid_json,
                 role,
                 model,
-                inp,
-                out,
+                input_tokens,
+                output_tokens,
                 reasoning,
-                read,
-                write,
-                numeric,
+                cache_read_tokens,
+                cache_write_tokens,
+                has_numeric_tokens,
             ) = row
-            if not valid:
+            if not is_valid_json:
                 partial = True
                 continue
             if role != "assistant":
                 continue
             try:
-                if not numeric:
+                if not has_numeric_tokens:
                     raise ValueError("Unknown token count")
                 values = dict(
-                    input=count(inp),
-                    output=count(out) + count(0 if reasoning is None else reasoning),
-                    cacheRead=count(read),
-                    cacheWrite=count(write),
+                    input=parse_token_count(input_tokens),
+                    output=parse_token_count(output_tokens)
+                    + parse_token_count(0 if reasoning is None else reasoning),
+                    cacheRead=parse_token_count(cache_read_tokens),
+                    cacheWrite=parse_token_count(cache_write_tokens),
                 )
-                total = count(sum(values.values()))
+                total = parse_token_count(sum(values.values()))
                 if not total:
                     continue
                 if (
@@ -128,18 +136,23 @@ def read_history(path, now, *, max_rows=MAX_ROWS, seconds=15):
                     or any(ord(char) < 32 or ord(char) == 127 for char in model)
                 ):
                     raise ValueError("Invalid model")
-                if not isinstance(session, str) or not session or len(session) > 2048:
+                if (
+                    not isinstance(session_id, str)
+                    or not session_id
+                    or len(session_id) > 2048
+                ):
                     raise ValueError("Invalid session")
-                date = datetime.fromtimestamp(created / 1000).date().isoformat()
+                date = datetime.fromtimestamp(created_at_ms / 1000).date().isoformat()
                 day = days[date]
                 bucket = models.get(
-                    model, dict(model=model, total=0, **dict.fromkeys(FIELDS, 0))
+                    model, dict(model=model, total=0, **dict.fromkeys(TOKEN_FIELDS, 0))
                 )
                 updated = {
-                    field: count(bucket[field] + values[field]) for field in FIELDS
+                    field: parse_token_count(bucket[field] + values[field])
+                    for field in TOKEN_FIELDS
                 }
-                model_total = count(bucket["total"] + total)
-                day_total = count(day["total"] + total)
+                model_total = parse_token_count(bucket["total"] + total)
+                day_total = parse_token_count(day["total"] + total)
             except (ValueError, TypeError, OverflowError, KeyError):
                 partial = True
                 continue
@@ -147,7 +160,7 @@ def read_history(path, now, *, max_rows=MAX_ROWS, seconds=15):
             models[model] = bucket
             day["total"] = day_total
             day["events"] += 1
-            sessions[date].add(session)
+            sessions[date].add(session_id)
         # Fail explicitly if a newer database contains v2 token-bearing events;
         # reporting only its legacy messages would imply complete totals.
         if connection.execute(
@@ -185,7 +198,7 @@ def main():
     if sys.version_info < (3, 11):
         print(
             json.dumps(
-                empty(
+                create_empty_history(
                     "unavailable",
                     "Python 3.11 or newer is required to read OpenCode activity.",
                 )
@@ -194,11 +207,11 @@ def main():
         return
     try:
         now = int(sys.argv[2])
-        if now <= 0 or now > MAX_SAFE:
+        if now <= 0 or now > MAX_SAFE_INTEGER:
             raise ValueError("Invalid time")
         result = read_history(sys.argv[1], now)
     except (sqlite3.Error, OSError, ValueError, IndexError, OverflowError):
-        result = empty(
+        result = create_empty_history(
             "unavailable",
             "OpenCode activity could not be read. Try refreshing after OpenCode finishes saving.",
         )

@@ -1,29 +1,14 @@
 .usagebeam-menu {
   font-size: 10.5pt;
-  -arrow-background-color: transparent;
-  -arrow-border-color: transparent;
   -arrow-border-width: 0px;
   -arrow-rise: 6px;
   -arrow-base: 0px;
-  background-color: transparent;
-  box-shadow: none;
 }
 
+/* Inherit the Shell surface so system themes and popup blur can style it. */
 .usagebeam-menu .popup-menu-content {
   font-size: 10.5pt;
-  border: 1px solid st-transparentize(st-lighten(-st-accent-color, 20%), 0.42);
   border-radius: 12px;
-  box-shadow: none;
-}
-
-.usagebeam-menu.usagebeam-dark .popup-menu-content {
-  color: #edf4f6;
-  background-color: st-mix(-st-accent-color, #1b3039, 7%);
-}
-
-.usagebeam-menu.usagebeam-light .popup-menu-content {
-  color: #17252c;
-  background-color: st-mix(-st-accent-color, #f4f8f9, 4%);
 }
 
 .usagebeam-panel-button {
@@ -32,7 +17,7 @@
 }
 
 .usagebeam-panel-slot {
-  font-size: 9.5pt;
+  font-size: 9pt;
 }
 
 .usagebeam-panel-status {
@@ -53,29 +38,22 @@
   icon-size: 15px;
 }
 
-.usagebeam-panel-provider,
-.usagebeam-panel-mark {
-  font-size: 9.5pt;
-}
-
 .usagebeam-panel-provider {
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .usagebeam-panel-value,
 .usagebeam-panel-reset {
-  color: st-lighten(-st-accent-color, 25%);
   font-feature-settings: "tnum";
-  font-size: 8.75pt;
 }
 
 .usagebeam-panel-value {
-  font-weight: 620;
+  font-weight: 600;
 }
 
 .usagebeam-panel-reset {
-  font-weight: 500;
-  opacity: 0.86;
+  font-weight: 400;
+  opacity: 0.75;
   text-align: left;
 }
 
@@ -91,8 +69,9 @@
   background-color: rgba(220, 232, 237, 0.62);
 }
 
-.usagebeam-panel-separator .usagebeam-separator-dot-core {
-  background-color: rgba(255, 255, 255, 0.58);
+.usagebeam-panel-separator {
+  font-weight: 400;
+  opacity: 0.5;
 }
 
 .usagebeam-content {
@@ -268,11 +247,11 @@
 }
 
 .usagebeam-disclosure {
-  min-height: 25px;
-  margin: 3px 0 4px;
-  padding: 6px 9px;
+  min-height: 20px;
+  margin: 2px 0 3px;
+  padding: 3px 8px;
   border: 1px solid rgba(128, 150, 160, 0.30);
-  border-radius: 7px;
+  border-radius: 6px;
   background-color: rgba(128, 150, 160, 0.065);
 }
 
@@ -288,12 +267,12 @@
 }
 
 .usagebeam-disclosure-title {
-  font-size: 10pt;
-  font-weight: 650;
+  font-size: 9.5pt;
+  font-weight: 600;
 }
 
 .usagebeam-disclosure-icon {
-  icon-size: 10px;
+  icon-size: 8px;
   opacity: 0.76;
 }
 
@@ -352,36 +331,30 @@
   opacity: 0.46;
 }
 
-.usagebeam-model-meter {
-  min-height: 22px;
-  margin-bottom: 6px;
-  spacing: 4px;
+.usagebeam-model-heading {
+  spacing: 12px;
 }
 
-.usagebeam-model-track {
-  height: 3px;
-  border-radius: 2px;
-  background-color: rgba(143, 166, 176, 0.18);
+.usagebeam-model-scope {
+  font-size: 8.75pt;
+  font-weight: 600;
+  opacity: 0.9;
 }
 
-.usagebeam-model-fill {
-  border-radius: 2px;
-  background-color: st-transparentize(st-mix(-st-accent-color, #aebfc8, 40%), 0.18);
-}
-
-.usagebeam-model-content {
-  spacing: 10px;
-  padding: 0 1px;
+.usagebeam-model-row {
+  spacing: 12px;
+  padding-bottom: 8px;
   font-size: 9.25pt;
 }
 
 .usagebeam-model-name {
-  font-weight: 520;
+  font-weight: 600;
 }
 
-.usagebeam-model-content .usagebeam-number {
-  font-size: 8.75pt;
-  font-weight: 650;
+.usagebeam-model-total {
+  font-feature-settings: "tnum";
+  font-weight: 600;
+  text-align: right;
 }
 
 .usagebeam-actions {
@@ -449,10 +422,6 @@
   background-color: rgba(55, 76, 86, 0.18);
 }
 
-.usagebeam-menu.usagebeam-light .usagebeam-model-track {
-  background-color: rgba(55, 76, 86, 0.14);
-}
-
 .usagebeam-menu.usagebeam-light .usagebeam-chart-plot {
   border-color: rgba(55, 76, 86, 0.18);
 }
@@ -498,14 +467,17 @@
   background-color: #f05f78;
 }
 
+.usagebeam-panel-light .usagebeam-panel-value.usagebeam-caution,
 .usagebeam-menu.usagebeam-light .usagebeam-limit-percent.usagebeam-caution {
   color: #7a5b00;
 }
 
+.usagebeam-panel-light .usagebeam-panel-value.usagebeam-warning,
 .usagebeam-menu.usagebeam-light .usagebeam-limit-percent.usagebeam-warning {
   color: #9a4f00;
 }
 
+.usagebeam-panel-light .usagebeam-panel-value.usagebeam-danger,
 .usagebeam-menu.usagebeam-light .usagebeam-limit-percent.usagebeam-danger {
   color: #b12643;
 }

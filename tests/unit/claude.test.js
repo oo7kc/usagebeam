@@ -1,9 +1,9 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
-import {claudeLimits, claudeLogin, collectClaude, parseClaudeEvent} from '../../src/providers/claude.js';
+import test from 'node:test';
+import {collectClaude, parseClaudeEvent, parseClaudeLimits, parseClaudeLogin} from '../../src/providers/claude.js';
 
 test('reads percent-scaled standard and model-scoped Claude windows', () => {
-    const result = claudeLimits({
+    const result = parseClaudeLimits({
         five_hour: {utilization: 1, resets_at: '2026-09-06T15:00:00Z'},
         seven_day_oauth_apps: {utilization: 24.5, resets_at: '2026-09-13T10:00:00Z'},
         limits: [
@@ -20,14 +20,14 @@ test('reads percent-scaled standard and model-scoped Claude windows', () => {
 });
 
 test('supports older fractional utilization without turning one percent into full usage', () => {
-    const result = claudeLimits({five_hour: {utilization: 0.25}, seven_day: {utilization: 0.5}});
+    const result = parseClaudeLimits({five_hour: {utilization: 0.25}, seven_day: {utilization: 0.5}});
     assert.deepEqual(result.windows.map(window => window.usedPercent), [25, 50]);
-    assert.equal(claudeLimits({}).status, 'unavailable');
+    assert.equal(parseClaudeLimits({}).status, 'unavailable');
 });
 
 test('Claude login exposes only the needed token, expiry and display plan', () => {
-    assert.deepEqual(claudeLogin({}), {token: null, expiresAt: null, plan: null});
-    assert.deepEqual(claudeLogin({claudeAiOauth: {accessToken: 'secret', expiresAt: 20,
+    assert.deepEqual(parseClaudeLogin({}), {token: null, expiresAt: null, plan: null});
+    assert.deepEqual(parseClaudeLogin({claudeAiOauth: {accessToken: 'secret', expiresAt: 20,
         rateLimitTier: 'default_claude_max_20x', subscriptionType: 'max'}}),
     {token: 'secret', expiresAt: 20, plan: 'Max 20x'});
 });

@@ -1,11 +1,11 @@
 // Loaded only by tools/smoke-shell.py in its isolated, synthetic desktop.
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
-import Pango from 'gi://Pango';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {runStress} from './stress.js';
 
 const UUID = 'usagebeam@oo7kc.github.io';
@@ -84,33 +84,76 @@ export default class UsageBeamUITest extends Extension {
             }));
     }
 
+    _checkMenuSurface(indicator, variant) {
+        const reference = new St.Widget({style_class: 'popup-menu panel-menu', visible: false});
+        const surface = new St.BoxLayout({style_class: 'popup-menu-content'});
+        reference.add_child(surface);
+        Main.uiGroup.add_child(reference);
+        try {
+            assert(indicator.menu.actor.has_style_class_name(`usagebeam-${variant}`),
+                `${variant}: menu controls do not follow the Shell theme`);
+            assert(indicator.has_style_class_name(`usagebeam-panel-${variant}`),
+                `${variant}: panel warning colors do not follow the Shell theme`);
+            const actual = indicator.menu.box.get_theme_node();
+            const expected = surface.get_theme_node();
+            assert(actual.get_background_color().to_string() === expected.get_background_color().to_string(),
+                `${variant}: popup background overrides the native Shell surface`);
+            assert(actual.get_foreground_color().to_string() === expected.get_foreground_color().to_string(),
+                `${variant}: popup text overrides the native Shell foreground`);
+            assert(actual.get_border_color(St.Side.TOP).to_string() ===
+                expected.get_border_color(St.Side.TOP).to_string(),
+            `${variant}: popup border overrides the native Shell border`);
+        } finally {
+            reference.destroy();
+        }
+    }
+
     _checkPanelSpacing(indicator, calendar, position, textScale) {
         const scale = St.ThemeContext.get_for_stage(global.stage).scale_factor;
-        const provider = bounds(indicator._panelProvider);
-        const value = bounds(indicator._panelValue);
-        const separator = bounds(indicator._panelSeparator);
-        const reset = bounds(indicator._panelReset);
-        const rowMidpoint = midpoint(indicator._panelProvider);
-        for (const actor of [indicator._panelIcon.get_child(), indicator._panelValue,
-            indicator._panelSeparator, indicator._panelReset]) {
+        const provider = bounds(indicator._panelReadout.providerLabel);
+        const value = bounds(indicator._panelReadout.valueLabel);
+        const separator = bounds(indicator._panelReadout.separator);
+        const reset = bounds(indicator._panelReadout.resetLabel);
+        const button = bounds(indicator);
+        const icon = bounds(indicator._panelReadout.iconBin);
+        const leftPadding = icon.x - button.x;
+        const rightPadding = button.x + button.width - reset.x - reset.width;
+        assert(leftPadding >= 0 && rightPadding >= 0 && Math.abs(leftPadding - rightPadding) <= 1,
+            `${position}: panel end padding is uneven (${leftPadding}px / ${rightPadding}px)`);
+        const rowMidpoint = midpoint(indicator._panelReadout.providerLabel);
+        for (const actor of [indicator._panelReadout.iconBin.get_child(), indicator._panelReadout.valueLabel,
+            indicator._panelReadout.separator, indicator._panelReadout.resetLabel]) {
             const offset = midpoint(actor) - rowMidpoint;
             assert(Math.abs(offset) <= scale,
                 `${position}: panel actor midpoint differs by ${offset}px`);
         }
-        const baseline = textBaseline(indicator._panelValue);
-        assert(Math.abs(textBaseline(indicator._panelReset) - baseline) <= 1,
+        const baseline = textBaseline(indicator._panelReadout.valueLabel);
+        assert(Math.abs(textBaseline(indicator._panelReadout.resetLabel) - baseline) <= 1,
             `${position}: reset time does not share the metric baseline`);
-        const providerLift = baseline - textBaseline(indicator._panelProvider);
-        assert(Math.abs(providerLift - scale) <= 1,
-            `${position}: provider optical lift is ${providerLift}px`);
+        assert(Math.abs(baseline - textBaseline(indicator._panelReadout.providerLabel)) <= 1,
+            `${position}: provider and metrics do not share their baseline`);
+        const providerFont = indicator._panelReadout.providerLabel.get_theme_node().get_font();
+        for (const actor of [indicator._panelReadout.valueLabel, indicator._panelReadout.resetLabel]) {
+            assert(actor.get_theme_node().get_font().get_size() === providerFont.get_size(),
+                `${position}: panel text uses inconsistent sizes`);
+        }
+        const panelColor = indicator.get_theme_node().get_foreground_color().to_string();
+        for (const actor of [indicator._panelReadout.providerLabel, indicator._panelReadout.resetLabel]) {
+            assert(actor.get_theme_node().get_foreground_color().to_string() === panelColor,
+                `${position}: panel text overrides its native foreground`);
+        }
+        const valueLabel = indicator._panelReadout.valueLabel;
+        if (!['caution', 'warning', 'danger'].some(severity => valueLabel.has_style_class_name(`usagebeam-${severity}`)))
+            assert(valueLabel.get_theme_node().get_foreground_color().to_string() === panelColor,
+                `${position}: normal usage is not using native panel text`);
         assert(value.x - provider.x - provider.width <= 6 * scale,
             `${position}: provider and percentage are spaced too far apart`);
         assert(Math.abs(separator.x - value.x - value.width -
             (reset.x - separator.x - separator.width)) <= 1,
         `${position}: panel separator spacing is uneven`);
         assert(bounds(indicator.container).width / scale < 180 * textScale,
-            `${position}: panel indicator is not compact`);
-        for (const actor of [indicator._panelProvider, indicator._panelValue, indicator._panelReset]) {
+            `${position}: panel indicator is not compact (${bounds(indicator.container).width / scale}px)`);
+        for (const actor of [indicator._panelReadout.providerLabel, indicator._panelReadout.valueLabel, indicator._panelReadout.resetLabel]) {
             assert(!actor.clutter_text.get_layout().is_ellipsized(), `${position}: panel text clipped`);
             assert(textWidth(actor) <= actor.width + 1,
                 `${position}: panel text exceeds its allocation`);
@@ -123,11 +166,13 @@ export default class UsageBeamUITest extends Extension {
         const clockLeft = Math.min(...clockLabels.map(actor => bounds(actor).x));
         const clockRight = Math.max(...clockLabels.map(actor => bounds(actor).x + actor.width));
         // Measure the visible text, not the label's allocated expansion space.
-        const resetRight = reset.x + textWidth(indicator._panelReset);
+        const resetRight = reset.x + textWidth(indicator._panelReadout.resetLabel);
         const gap = position === 'left-of-calendar' ? clockLeft - resetRight
-            : bounds(indicator._panelIcon).x - clockRight;
-        assert(gap >= 0 && gap <= 20 * scale,
-            `${position}: calendar/readout visual gap is not compact: ${gap / scale}`);
+            : bounds(indicator._panelReadout.iconBin).x - clockRight;
+        const readout = indicator._panelReadout;
+        const reservedPadding = Math.max(0, readout.width - readout.statusRow.width) / 2;
+        assert(gap >= 0 && gap <= 20 * scale + reservedPadding + 1,
+            `${position}: calendar/readout gap exceeds balanced width reservation: ${gap / scale}`);
         return gap / scale;
     }
 
@@ -149,20 +194,48 @@ export default class UsageBeamUITest extends Extension {
         const placement = [];
         Main.overview.hide();
         await this._wait(500);
-        // Configure only this private virtual monitor, temporarily. Setting just
+        // Configure only these private virtual monitors, temporarily. Setting just
         // St's scale factor would scale lengths without updating the font DPI.
         const expectedScale = Number(GLib.getenv('USAGEBEAM_TEST_SCALE') ?? 1);
-        if (expectedScale !== 1) {
+        const multipleMonitors = GLib.getenv('USAGEBEAM_SECONDARY_MONITOR') === '1';
+        if (expectedScale !== 1 || multipleMonitors) {
             const [serial, monitors] = await this._displayCall('GetCurrentState');
-            const [[connector], modes] = monitors[0];
-            const [mode] = modes.find(item => item[5].includes(expectedScale)) ?? [];
-            assert(mode, `Virtual monitor does not support scale ${expectedScale}`);
+            let x = 0;
+            const configuration = monitors.map(([[connector], modes], index) => {
+                const [mode, width] = modes.find(item => item[5].includes(expectedScale)) ?? [];
+                assert(mode, `Virtual monitor does not support scale ${expectedScale}`);
+                const entry = [x, 0, expectedScale, 0, index === monitors.length - 1, [[connector, mode, {}]]];
+                x += Math.round(width / expectedScale);
+                return entry;
+            });
             await this._displayCall('ApplyMonitorsConfig', new GLib.Variant('(uua(iiduba(ssa{sv}))a{sv})',
-                [serial, 1, [[0, 0, expectedScale, 0, true, [[connector, mode, {}]]]], {}]));
+                [serial, 1, configuration, {}]));
             await this._wait(500);
+            if (multipleMonitors) {
+                assert(monitors.length === 2, 'Expected two independent virtual monitors');
+                for (const primary of [0, 1]) {
+                    const [currentSerial] = await this._displayCall('GetCurrentState');
+                    for (let index = 0; index < configuration.length; index++)
+                        configuration[index][4] = index === primary;
+                    await this._displayCall('ApplyMonitorsConfig', new GLib.Variant('(uua(iiduba(ssa{sv}))a{sv})',
+                        [currentSerial, 1, configuration, {}]));
+                    await this._wait(500);
+                    for (const position of ['left-of-calendar', 'right-of-calendar']) {
+                        settings.set_string('panel-position', position);
+                        await this._wait();
+                        const slot = bounds(indicator.container);
+                        const clock = bounds(calendar);
+                        const monitor = Main.layoutManager.findMonitorForActor(Main.panel);
+                        const center = (Math.min(slot.x, clock.x) +
+                            Math.max(slot.x + slot.width, clock.x + clock.width)) / 2;
+                        assert(Math.abs(center - monitor.x - monitor.width / 2) <= 1,
+                            `${position}: group moved off-center when changing the primary monitor`);
+                    }
+                }
+            }
         }
         const [, , logicalMonitors] = await this._displayCall('GetCurrentState');
-        const monitorScale = logicalMonitors[0][2];
+        const monitorScale = logicalMonitors.find(monitor => monitor[4])[2];
         assert(monitorScale === expectedScale, `Expected monitor scale ${expectedScale}, got ${monitorScale}`);
         const interfaceSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
         const textScale = interfaceSettings.get_double('text-scaling-factor');
@@ -194,10 +267,10 @@ export default class UsageBeamUITest extends Extension {
                     `${position}: calendar moved on provider change`);
                 assert(Math.abs(bounds(indicator.container).width - before.width) <= 1,
                     `${position}: indicator width changed`);
-                assert(!indicator._panelProvider.clutter_text.get_layout().is_ellipsized(),
+                assert(!indicator._panelReadout.providerLabel.clutter_text.get_layout().is_ellipsized(),
                     `${position}: panel provider name clipped: ${JSON.stringify({
-                        status: indicator._panelStatus.width,
-                        children: indicator._panelStatus.get_children().map(actor =>
+                        status: indicator._panelReadout.statusRow.width,
+                        children: indicator._panelReadout.statusRow.get_children().map(actor =>
                             ({style: actor.style_class, width: actor.width, preferred: actor.get_preferred_width(-1)})),
                     })}`);
             }
@@ -208,12 +281,11 @@ export default class UsageBeamUITest extends Extension {
                 assert(offset === (position === 'left-of-calendar' ? -1 : 1), 'Calendar adjacency lost');
             }
             if (position.includes('calendar')) {
-                const left = position === 'left-of-calendar' ? before : clockBefore;
-                const right = position === 'left-of-calendar' ? clockBefore : before;
-                const panel = bounds(Main.panel);
-                const gapCenter = (left.x + left.width + right.x) / 2;
-                assert(Math.abs(gapCenter - (panel.x + panel.width / 2)) <= 1,
-                    `${position}: calendar/indicator gap is not centered (${gapCenter})`);
+                const monitor = Main.layoutManager.findMonitorForActor(Main.panel);
+                const groupCenter = (Math.min(before.x, clockBefore.x) +
+                    Math.max(before.x + before.width, clockBefore.x + clockBefore.width)) / 2;
+                assert(Math.abs(groupCenter - (monitor.x + monitor.width / 2)) <= 1,
+                    `${position}: calendar/indicator group is not centered (${groupCenter})`);
             }
             settings.set_string('default-provider', 'codex');
             await this._wait();
@@ -232,13 +304,13 @@ export default class UsageBeamUITest extends Extension {
             longer.usedPercent = 100;
             indicator.render();
             await this._wait();
-            assert(indicator._panelValue.text === '0%',
+            assert(indicator._panelReadout.valueLabel.text === '0%',
                 `${provider}: panel did not prefer the freshly reset short window`);
             shortest.usedPercent = 100;
             longer.usedPercent = 0;
             indicator.render();
             await this._wait();
-            assert(indicator._panelValue.text === '100%',
+            assert(indicator._panelReadout.valueLabel.text === '100%',
                 `${provider}: panel dropped the exhausted short window`);
             [shortest.usedPercent, longer.usedPercent] = original;
         }
@@ -250,7 +322,10 @@ export default class UsageBeamUITest extends Extension {
         assert(providerTabs.length === 3, 'Expected one provider tab per enabled provider');
         assert(providerTabs.filter(tab => tab.checked).length === 1,
             'Provider selector must expose exactly one active tab');
-        matching(indicator._contentBox, 'usagebeam-disclosure')[0].emit('clicked', 1);
+        const disclosure = matching(indicator._contentBox, 'usagebeam-disclosure')[0];
+        assert(disclosure.height / St.ThemeContext.get_for_stage(global.stage).scale_factor <= 32,
+            `Activity disclosure is not compact: ${disclosure.height}px`);
+        disclosure.emit('clicked', 1);
         await this._wait();
         assert(indicator._detailsExpanded, 'Activity button did not expand');
         const content = indicator._contentBox;
@@ -258,15 +333,19 @@ export default class UsageBeamUITest extends Extension {
         const initial = bounds(indicator.menu.actor);
         assert(initial.height / scale < 720 * textScale, `Expanded menu too tall: ${initial.height / scale}`);
         assert(!descendants(content).some(actor => actor instanceof St.ScrollView), 'Activity is scrollable');
-        const models = matching(content, 'usagebeam-model-meter');
+        const models = matching(content, 'usagebeam-model-row');
         assert(models.length === 3, 'Expected three synthetic models');
         for (const actor of models) {
             assert(actor.height / scale >= 22 && actor.height / scale <= 36 * textScale,
                 `Model row height is not compact: ${actor.height / scale}`);
-            const tracks = matching(actor, 'usagebeam-model-track');
-            assert(tracks.length === 1, 'Model row must contain one compact progress track');
-            assert(tracks[0]._fill.width > 0 && tracks[0]._fill.height > 0, 'Model fill is empty');
+            const [name, total] = actor.get_children();
+            assert(name instanceof St.Label && total instanceof St.Label,
+                'Model row must contain its name and token total');
+            assert(actor.accessible_name.includes('tokens. Input'), 'Model token breakdown is not accessible');
+            assert(Math.abs(bounds(total).x + total.width - bounds(actor).x - actor.width) <= 1,
+                'Model total is not right-aligned');
         }
+        assert(matching(content, 'usagebeam-model-track').length === 0, 'Model progress tracks remain');
         const plots = matching(content, 'usagebeam-chart-plot');
         assert(plots.length === 7, 'Expected seven chart columns');
         for (const plot of plots) {
@@ -290,7 +369,7 @@ export default class UsageBeamUITest extends Extension {
                 'Reset description should be left-aligned below its bar');
             assert(/^Resets in \d+[dhm]/.test(reset.text), 'Reset description lacks its explanatory prefix');
         }
-        const dots = [indicator._panelSeparator, ...matching(content, 'usagebeam-separator-dot')];
+        const dots = matching(content, 'usagebeam-separator-dot');
         for (const dot of dots) {
             const dotBounds = bounds(dot);
             const coreBounds = bounds(dot.get_child());
@@ -320,12 +399,16 @@ export default class UsageBeamUITest extends Extension {
             assert(actors.some(actor => actor.has_style_class_name('usagebeam-track')),
                 `${severity}: meter does not expose quota severity`);
         }
-        assert(indicator._panelValue.has_style_class_name('usagebeam-danger'),
+        assert(indicator._panelReadout.valueLabel.has_style_class_name('usagebeam-danger'),
             'Panel indicator does not expose the shortest quota severity');
-        const modelContent = matching(content, 'usagebeam-model-content')[0];
-        const [modelName, modelTotal] = modelContent.get_children();
-        assert(modelTotal.get_theme_node().get_font().get_size() <
-            modelName.get_theme_node().get_font().get_size(), 'Model row lacks font hierarchy');
+        const [modelName, modelTotal] = models[0].get_children();
+        assert(modelTotal.get_theme_node().get_font().get_weight() ===
+            modelName.get_theme_node().get_font().get_weight(), 'Model names and totals use inconsistent emphasis');
+        assert(modelName.get_theme_node().get_font().get_weight() >= 600,
+            'Model names are too light for surrounding content');
+        const modelScope = matching(content, 'usagebeam-model-scope')[0];
+        assert(modelScope.get_theme_node().get_font().get_weight() >= 600,
+            'Model period and source metadata should be bold');
         const heights = models.map(actor => actor.height);
         for (let frame = 0; frame < 8; frame++) {
             content.queue_relayout();
@@ -338,14 +421,20 @@ export default class UsageBeamUITest extends Extension {
         const expectedFont = GLib.getenv('USAGEBEAM_EXPECTED_FONT');
         assert(expectedFont && font.includes(expectedFont),
             `Configured system font ${expectedFont} was overridden: ${font}`);
-        await this._screenshot('expanded-dark');
-        indicator.menu.actor.remove_style_class_name('usagebeam-dark');
-        indicator.menu.actor.add_style_class_name('usagebeam-light');
-        await this._wait();
-        await this._screenshot('expanded-light');
+        const originalColorScheme = interfaceSettings.get_string('color-scheme');
+        try {
+            for (const variant of ['dark', 'light', 'dark']) {
+                interfaceSettings.set_string('color-scheme', `prefer-${variant}`);
+                await this._wait();
+                this._checkMenuSurface(indicator, variant);
+                await this._screenshot(`expanded-${variant}`);
+            }
+        } finally {
+            interfaceSettings.set_string('color-scheme', originalColorScheme);
+        }
         settings.set_string('default-provider', 'opencode');
         await this._wait();
-        assert(indicator._panelValue.text === '109.2M' && indicator._panelReset.text === '7d',
+        assert(indicator._panelReadout.valueLabel.text === '109.2M' && indicator._panelReadout.resetLabel.text === '7d',
             'OpenCode panel must show local tokens and period');
         assert(matching(indicator._contentBox, 'usagebeam-window').length === 0,
             'OpenCode must not fabricate quota meters');

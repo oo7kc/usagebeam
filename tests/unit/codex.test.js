@@ -1,13 +1,17 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
-import {codexLimits, codexOversizedRecordMayAffectUsage, collectCodex,
-    parseCodexEvent} from '../../src/providers/codex.js';
+import test from 'node:test';
+import {
+    codexOversizedRecordMayAffectUsage,
+    collectCodex,
+    parseCodexEvent,
+    parseCodexLimits,
+} from '../../src/providers/codex.js';
 
 const tokenEvent = (input, output, cache, total) => ({timestamp: '2026-09-06T12:00:00Z', type: 'event_msg', payload: {type: 'token_count',
     info: {total_token_usage: {input_tokens: input, output_tokens: output, cached_input_tokens: cache, total_tokens: total}}}});
 
 test('reads all quota buckets and derives labels from real window durations', () => {
-    const result = codexLimits({rateLimitsByLimitId: {codex: {primary: {usedPercent: 10, windowDurationMins: 300, resetsAt: 1800000000},
+    const result = parseCodexLimits({rateLimitsByLimitId: {codex: {primary: {usedPercent: 10, windowDurationMins: 300, resetsAt: 1800000000},
         secondary: {usedPercent: 100, windowDurationMins: 10080}}}}, 100);
     assert.equal(result.windows.length, 2);
     assert.equal(result.windows[0].resetsAt, 1800000000000);
@@ -18,8 +22,8 @@ test('reads all quota buckets and derives labels from real window durations', ()
 });
 
 test('empty Codex response is unavailable, not zero usage', () => {
-    assert.equal(codexLimits({}).status, 'unavailable');
-    assert.equal(codexLimits({rateLimits: {primary: {}}}).windows.length, 0);
+    assert.equal(parseCodexLimits({}).status, 'unavailable');
+    assert.equal(parseCodexLimits({rateLimits: {primary: {}}}).windows.length, 0);
 });
 
 test('cumulative token deltas and cached input are counted once', () => {
@@ -39,7 +43,7 @@ test('cumulative token deltas and cached input are counted once', () => {
 });
 
 test('multi-bucket response falls back to the compatible quota view when empty', () => {
-    const result = codexLimits({rateLimitsByLimitId: {}, rateLimits: {
+    const result = parseCodexLimits({rateLimitsByLimitId: {}, rateLimits: {
         primary: {usedPercent: 12, windowDurationMins: 300},
     }}, 100);
     assert.equal(result.status, 'ready');
@@ -47,7 +51,7 @@ test('multi-bucket response falls back to the compatible quota view when empty',
 });
 
 test('primary Codex limits remain first when the app server reorders buckets', () => {
-    const result = codexLimits({rateLimitsByLimitId: {
+    const result = parseCodexLimits({rateLimitsByLimitId: {
         reserve: {limitName: 'Reserve', primary: {usedPercent: 1, windowDurationMins: 10080}},
         codex: {primary: {usedPercent: 2, windowDurationMins: 300}},
     }});

@@ -1,18 +1,18 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
-import {NAMES, orderedEnabledProviders, providerOrder} from '../core/usage.js';
+import {PROVIDER_NAMES, getEnabledProviders, normalizeProviderOrder} from '../core/providerRegistry.js';
 
-const POSITIONS = Object.freeze(['left', 'right', 'left-of-calendar', 'right-of-calendar']);
-const POSITION_NAMES = Object.freeze(['Left panel', 'Right panel', 'Left of calendar', 'Right of calendar']);
+const PANEL_POSITIONS = Object.freeze(['left', 'right', 'left-of-calendar', 'right-of-calendar']);
+const PANEL_POSITION_LABELS = Object.freeze(['Left panel', 'Right panel', 'Left of calendar', 'Right of calendar']);
 
-function moveButton(icon, tooltip, enabled, callback) {
+function createMoveButton(icon, tooltip, enabled, callback) {
     const button = new Gtk.Button({icon_name: icon, tooltip_text: tooltip, sensitive: enabled,
         valign: Gtk.Align.CENTER, css_classes: ['flat', 'circular']});
     button.connect('clicked', callback);
     return button;
 }
 
-function providerGroup(page, settings, signals) {
+function buildProviderGroup(page, settings, signals) {
     const group = new Adw.PreferencesGroup({title: 'Providers',
         description: 'Choose which providers appear and how they are ordered'});
     page.add(group);
@@ -20,7 +20,7 @@ function providerGroup(page, settings, signals) {
     let defaultRow = null;
     let syncing = false;
 
-    const enabled = () => orderedEnabledProviders(settings.get_strv('enabled-providers'),
+    const enabled = () => getEnabledProviders(settings.get_strv('enabled-providers'),
         settings.get_strv('provider-order'));
     const render = () => {
         syncing = true;
@@ -28,18 +28,18 @@ function providerGroup(page, settings, signals) {
             group.remove(defaultRow);
         rows.forEach(row => group.remove(row));
         rows = [];
-        const order = providerOrder(settings.get_strv('provider-order'));
+        const order = normalizeProviderOrder(settings.get_strv('provider-order'));
         const selected = new Set(settings.get_strv('enabled-providers'));
         order.forEach((id, index) => {
-            const row = new Adw.SwitchRow({title: NAMES[id],
+            const row = new Adw.SwitchRow({title: PROVIDER_NAMES[id],
                 subtitle: id === 'opencode' ? 'Local token and model activity' : 'Account limits and local activity',
                 active: selected.has(id)});
-            row.add_suffix(moveButton('go-up-symbolic', `Move ${NAMES[id]} up`, index > 0, () => {
+            row.add_suffix(createMoveButton('go-up-symbolic', `Move ${PROVIDER_NAMES[id]} up`, index > 0, () => {
                 const next = [...order];
                 [next[index - 1], next[index]] = [next[index], next[index - 1]];
                 settings.set_strv('provider-order', next);
             }));
-            row.add_suffix(moveButton('go-down-symbolic', `Move ${NAMES[id]} down`, index < order.length - 1, () => {
+            row.add_suffix(createMoveButton('go-down-symbolic', `Move ${PROVIDER_NAMES[id]} down`, index < order.length - 1, () => {
                 const next = [...order];
                 [next[index], next[index + 1]] = [next[index + 1], next[index]];
                 settings.set_strv('provider-order', next);
@@ -75,7 +75,7 @@ function providerGroup(page, settings, signals) {
         syncingDefault = true;
         const providers = enabled();
         defaultRow.model = Gtk.StringList.new(providers.length
-            ? providers.map(id => NAMES[id]) : ['No provider enabled']);
+            ? providers.map(id => PROVIDER_NAMES[id]) : ['No provider enabled']);
         defaultRow.sensitive = providers.length > 0;
         const selected = providers.indexOf(settings.get_string('default-provider'));
         defaultRow.selected = Math.max(0, selected);
@@ -94,22 +94,22 @@ function providerGroup(page, settings, signals) {
     group.add(defaultRow);
 }
 
-function panelGroup(page, settings, signals) {
+function buildPanelGroup(page, settings, signals) {
     const group = new Adw.PreferencesGroup({title: 'Panel'});
     page.add(group);
     const positionRow = new Adw.ComboRow({title: 'Panel position',
         subtitle: 'Choose a side area or place usage beside the calendar',
-        model: Gtk.StringList.new(POSITION_NAMES)});
+        model: Gtk.StringList.new(PANEL_POSITION_LABELS)});
     let syncing = false;
     const syncPosition = () => {
         syncing = true;
-        const selected = POSITIONS.indexOf(settings.get_string('panel-position'));
+        const selected = PANEL_POSITIONS.indexOf(settings.get_string('panel-position'));
         positionRow.selected = selected >= 0 ? selected : 3;
         syncing = false;
     };
     positionRow.connect('notify::selected', () => {
         if (!syncing)
-            settings.set_string('panel-position', POSITIONS[positionRow.selected]);
+            settings.set_string('panel-position', PANEL_POSITIONS[positionRow.selected]);
     });
     signals.push(settings.connect('changed::panel-position', syncPosition));
     syncPosition();
@@ -122,7 +122,7 @@ function panelGroup(page, settings, signals) {
     group.add(intervalRow);
 }
 
-function alertsGroup(page, window, settings, clearData) {
+function buildAlertsGroup(page, window, settings, clearData) {
     const group = new Adw.PreferencesGroup({title: 'Alerts &amp; Data'});
     page.add(group);
     const notifyRow = new Adw.SwitchRow({title: 'Usage notifications',
@@ -172,9 +172,9 @@ function alertsGroup(page, window, settings, clearData) {
 export function buildPreferencesWindow(window, settings, clearData) {
     const page = new Adw.PreferencesPage();
     const signals = [];
-    providerGroup(page, settings, signals);
-    panelGroup(page, settings, signals);
-    alertsGroup(page, window, settings, clearData);
+    buildProviderGroup(page, settings, signals);
+    buildPanelGroup(page, settings, signals);
+    buildAlertsGroup(page, window, settings, clearData);
     window.add(page);
     window.connect('close-request', () => {
         signals.splice(0).forEach(id => settings.disconnect(id));
