@@ -1,14 +1,14 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import {PROVIDER_IDS} from '../core/providerRegistry.js';
 
-export const join = (...parts) => GLib.build_filenamev(parts);
+export const buildPath = (...parts) => GLib.build_filenamev(parts);
 export const fingerprint = value => GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, String(value), -1);
 
 const PRODUCT_DIRECTORY = 'usagebeam';
 const LEGACY_DIRECTORY = 'freeby';
-const PROVIDERS = Object.freeze(['codex', 'claude']);
 
-function readText(path, fallback = null, maxBytes = 16 * 1024 * 1024) {
+function readBoundedFileText(path, fallback = null, maxBytes = 16 * 1024 * 1024) {
     if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
         throw new Error('File size limit must be a positive integer');
     try {
@@ -25,7 +25,7 @@ function readText(path, fallback = null, maxBytes = 16 * 1024 * 1024) {
 }
 
 export function readJson(path, fallback = null, maxBytes = 16 * 1024 * 1024) {
-    const text = readText(path, null, maxBytes);
+    const text = readBoundedFileText(path, null, maxBytes);
     if (text === null)
         return fallback;
     try {
@@ -48,32 +48,53 @@ export function writeJson(path, value) {
 }
 
 export function stateDirectory() {
-    return join(GLib.get_user_state_dir(), PRODUCT_DIRECTORY);
+    return buildPath(GLib.get_user_state_dir(), PRODUCT_DIRECTORY);
 }
 
 export function cacheDirectory() {
-    return join(GLib.get_user_cache_dir(), PRODUCT_DIRECTORY);
+    return buildPath(GLib.get_user_cache_dir(), PRODUCT_DIRECTORY);
+}
+
+export function clearDerivedData({state = stateDirectory(), cache = cacheDirectory()} = {}) {
+    const paths = [
+        ...PROVIDER_IDS.map(id => buildPath(state, `${id}.json`)),
+        ...PROVIDER_IDS.map(id => buildPath(cache, `history-${id}.json`)),
+    ];
+    let removed = 0;
+    for (const path of paths) {
+        const file = Gio.File.new_for_path(path);
+        try {
+            const type = file.query_file_type(Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+            if (![Gio.FileType.REGULAR, Gio.FileType.SYMBOLIC_LINK].includes(type))
+                continue;
+            file.delete(null);
+            removed++;
+        } catch {
+            // Missing or inaccessible cache files do not make clearing unsafe.
+        }
+    }
+    return removed;
 }
 
 export function migrateLegacyData({
-    legacyState = join(GLib.get_user_state_dir(), LEGACY_DIRECTORY),
-    legacyCache = join(GLib.get_user_cache_dir(), LEGACY_DIRECTORY),
+    legacyState = buildPath(GLib.get_user_state_dir(), LEGACY_DIRECTORY),
+    legacyCache = buildPath(GLib.get_user_cache_dir(), LEGACY_DIRECTORY),
     state = stateDirectory(),
     cache = cacheDirectory(),
 } = {}) {
     const groups = [
-        {source: legacyState, destination: state, names: PROVIDERS.map(id => `${id}.json`),
+        {source: legacyState, destination: state, names: PROVIDER_IDS.map(id => `${id}.json`),
             maxBytes: 16 * 1024 * 1024},
-        {source: legacyCache, destination: cache, names: PROVIDERS.map(id => `history-${id}.json`),
+        {source: legacyCache, destination: cache, names: PROVIDER_IDS.map(id => `history-${id}.json`),
             maxBytes: 64 * 1024 * 1024},
     ];
     let migrated = 0;
     for (const group of groups) {
         for (const name of group.names) {
-            const destination = join(group.destination, name);
+            const destination = buildPath(group.destination, name);
             if (Gio.File.new_for_path(destination).query_exists(null))
                 continue;
-            const value = readJson(join(group.source, name), null, group.maxBytes);
+            const value = readJson(buildPath(group.source, name), null, group.maxBytes);
             if (value === null)
                 continue;
             try {

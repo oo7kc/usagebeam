@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {join, migrateLegacyData} from './files.js';
+import {normalizeProviderOrder} from '../core/providerRegistry.js';
+import {buildPath, migrateLegacyData} from './files.js';
 
 const LEGACY_UUID = 'freeby@kelvin.local';
 const LEGACY_SCHEMA = 'org.gnome.shell.extensions.freeby';
@@ -15,7 +16,7 @@ const SETTINGS = Object.freeze([
 
 function legacySchemaDirectories() {
     return [GLib.get_user_data_dir(), ...GLib.get_system_data_dirs()]
-        .map(directory => join(directory, 'gnome-shell', 'extensions', LEGACY_UUID, 'schemas'));
+        .map(directory => buildPath(directory, 'gnome-shell', 'extensions', LEGACY_UUID, 'schemas'));
 }
 
 function legacySettings(directories = legacySchemaDirectories()) {
@@ -57,4 +58,16 @@ export function copyLegacySettings(settings, legacy) {
 export function migrateLegacyInstall(settings) {
     migrateLegacyData();
     migrateLegacySettings(settings);
+    migrateProviderOrder(settings);
+}
+
+export function migrateProviderOrder(settings) {
+    if (settings.get_user_value('provider-order') !== null)
+        return false;
+    const value = settings.get_user_value('enabled-providers');
+    if (value === null)
+        return false;
+    const enabled = value.deepUnpack?.() ?? value.deep_unpack?.() ?? value;
+    settings.set_strv('provider-order', normalizeProviderOrder(enabled));
+    return true;
 }

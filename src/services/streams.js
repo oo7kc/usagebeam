@@ -2,19 +2,23 @@ import GLib from 'gi://GLib';
 
 const CHUNK_BYTES = 65536;
 
-export function readBytes(stream, cancellable) {
+export function readStreamChunk(stream, cancellable) {
     return new Promise((resolve, reject) => {
         stream.read_bytes_async(CHUNK_BYTES, GLib.PRIORITY_DEFAULT, cancellable, (input, result) => {
-            try { resolve(input.read_bytes_finish(result).toArray()); } catch (error) { reject(error); }
+            try {
+                resolve(input.read_bytes_finish(result).toArray());
+            } catch (error) {
+                reject(error);
+            }
         });
     });
 }
 
-export async function readText(stream, maxBytes, cancellable, limitError) {
+export async function readStreamText(stream, maxBytes, cancellable, limitError) {
     const parts = [];
     let size = 0;
     while (true) {
-        const bytes = await readBytes(stream, cancellable);
+        const bytes = await readStreamChunk(stream, cancellable);
         if (!bytes.length)
             break;
         size += bytes.length;
@@ -34,11 +38,11 @@ export async function readText(stream, maxBytes, cancellable, limitError) {
 }
 
 // RPC lines are bounded before decoding or parsing, including unterminated lines.
-export async function* readLines(stream, maxBytes, cancellable, limitError) {
+export async function* readStreamLines(stream, maxBytes, cancellable, limitError) {
     let parts = [];
     let size = 0;
     while (true) {
-        const bytes = await readBytes(stream, cancellable);
+        const bytes = await readStreamChunk(stream, cancellable);
         if (!bytes.length) {
             if (size)
                 throw new Error('Incomplete RPC message');
@@ -73,19 +77,29 @@ export async function* readLines(stream, maxBytes, cancellable, limitError) {
     }
 }
 
-export function writeText(stream, text, cancellable) {
+export function writeStreamText(stream, text, cancellable) {
     return new Promise((resolve, reject) => {
         stream.write_all_async(new TextEncoder().encode(text), GLib.PRIORITY_DEFAULT, cancellable,
             (output, result) => {
-                try { output.write_all_finish(result); resolve(); } catch (error) { reject(error); }
+                try {
+                    output.write_all_finish(result);
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                }
             });
     });
 }
 
-export function waitProcess(proc, cancellable = null) {
+export function waitForProcess(process, cancellable = null) {
     return new Promise((resolve, reject) => {
-        proc.wait_async(cancellable, (child, result) => {
-            try { child.wait_finish(result); resolve(); } catch (error) { reject(error); }
+        process.wait_async(cancellable, (child, result) => {
+            try {
+                child.wait_finish(result);
+                resolve();
+            } catch (error) {
+                reject(error);
+            }
         });
     });
 }

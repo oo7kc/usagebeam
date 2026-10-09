@@ -1,4 +1,4 @@
-project('usagebeam', version: '2.0.0-alpha.3', license: 'MIT',
+project('usagebeam', version: '2.0.0-alpha.5-dev.0', license: 'MIT',
   meson_version: '>= 0.56.0',
   default_options: ['warning_level=0'])
 

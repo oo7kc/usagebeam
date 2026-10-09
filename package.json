@@ -1,12 +1,12 @@
 {
   "name": "usagebeam",
-  "version": "2.0.0-alpha.3",
+  "version": "2.0.0-alpha.5-dev.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test tests/unit/*.test.js",
     "lint": "node tools/check.js",
-    "test:integration": "gjs -m tests/integration/collector.js",
+    "test:integration": "gjs -m tests/integration/collector.js && gjs -m tests/integration/opencode.js && python3 -B tests/integration/opencode_history.py",
     "test:stress": "gjs -m tests/integration/stress.js",
     "check": "npm run lint && npm test && npm run test:integration",
     "pack": "python3 tools/package.py",

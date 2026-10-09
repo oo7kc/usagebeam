@@ -28,13 +28,23 @@ export async function requestJson(url, {method = 'GET', headers = {}, body = nul
         if (body !== null)
             message.set_request_body_from_bytes('application/json',
                 new GLib.Bytes(new TextEncoder().encode(JSON.stringify(body))));
-        const bytes = await new Promise((resolve, reject) => session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, cancellable, (s, res) => {
-            try { resolve(s.send_and_read_finish(res)); } catch (error) { reject(error); }
-        }));
+        const bytes = await new Promise((resolve, reject) => {
+            session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, cancellable, (session, result) => {
+                try {
+                    resolve(session.send_and_read_finish(result));
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
         if (bytes.get_size() > maxResponseBytes)
             throw new Error('Provider response exceeded the configured limit');
         let data = null;
-        try { data = JSON.parse(new TextDecoder().decode(bytes.toArray())); } catch { /* Status remains available for error handling. */ }
+        try {
+            data = JSON.parse(new TextDecoder().decode(bytes.toArray()));
+        } catch {
+            /* Status remains available for error handling. */
+        }
         return {status: message.status_code, data};
     } finally {
         session.abort();

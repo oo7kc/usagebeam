@@ -49,6 +49,7 @@ def package(source, output):
         )
     ]
     files.extend(sorted((source / "src").rglob("*.js")))
+    files.append(source / "src" / "collector" / "opencode_history.py")
     files.extend(sorted((source / "icons").glob("*.svg")))
     schema = metadata.get("settings-schema")
     if schema != "org.gnome.shell.extensions.usagebeam":

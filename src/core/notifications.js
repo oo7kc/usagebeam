@@ -1,15 +1,21 @@
 import {notificationMilestones} from './thresholds.js';
 
-export function notificationBody(alerts) {
+export function formatNotificationBody(alerts) {
     return [...new Set(alerts.map(alert => {
         const state = alert.threshold >= 100 ? 'limit reached' : `reached ${alert.threshold}%`;
         return `${alert.provider}: ${alert.label} ${state}.`;
     }))].join('\n');
 }
 
-export class ThresholdTracker {
+const MAX_TRACKED_WINDOWS = 200;
+
+export class QuotaThresholdTracker {
     constructor() {
-        this.previous = new Map();
+        this._reachedMilestones = new Map();
+    }
+
+    get trackedWindowCount() {
+        return this._reachedMilestones.size;
     }
 
     update(record, threshold = 90) {
@@ -21,16 +27,16 @@ export class ThresholdTracker {
             if (window.unlimited || !Number.isFinite(window.usedPercent))
                 continue;
             const key = `${record.id}:${record.accountKey ?? 'default'}:${window.id}:${window.resetsAt ?? 'unknown'}`;
-            const previous = this.previous.get(key);
+            const previous = this._reachedMilestones.get(key);
             const reached = milestones.filter(value => window.usedPercent >= value).at(-1) ?? 0;
             if (previous !== undefined && reached > previous)
                 alerts.push({provider: record.name, label: window.label, threshold: reached});
             // Refresh insertion order so active windows survive eviction of old periods.
-            this.previous.delete(key);
-            this.previous.set(key, Math.max(previous ?? 0, reached));
+            this._reachedMilestones.delete(key);
+            this._reachedMilestones.set(key, Math.max(previous ?? 0, reached));
         }
-        while (this.previous.size > 200)
-            this.previous.delete(this.previous.keys().next().value);
+        while (this._reachedMilestones.size > MAX_TRACKED_WINDOWS)
+            this._reachedMilestones.delete(this._reachedMilestones.keys().next().value);
         return alerts;
     }
 }

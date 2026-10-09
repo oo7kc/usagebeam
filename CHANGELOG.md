@@ -4,6 +4,53 @@ All notable UsageBeam changes are documented here.
 
 ## Unreleased
 
+### Added
+
+- Optional OpenCode support with a seven-day panel total, daily activity, model
+  breakdowns, and the native OpenCode icon.
+- Read-only OpenCode activity collection with no credential access or extra
+  Python packages. Requires Python 3.11 or newer with SQLite support.
+- Provider enablement, ordering, and default-provider controls in preferences.
+- Notification threshold, history retention, and safe saved-data controls.
+- Clear-data requests also discard in-memory snapshots before activity rebuilds.
+
+### Changed
+
+- Model names and period/source metadata use stronger weights, and the Activity
+  disclosure uses a more compact height and padding.
+- Spare panel width is shared evenly around the readout so short values retain
+  balanced end padding without shifting the calendar.
+- Model totals use a compact two-column list with a quieter period and source
+  label instead of progress tracks.
+- Panel text shares one size and baseline, with native foreground colors,
+  a subdued reset timer, and theme-aware colors for high quota usage.
+- Calendar-adjacent placement centers the combined clock and UsageBeam group
+  on its monitor, including when side docks offset the desktop work area.
+- The popup inherits GNOME's system surface colors, border, and shadow, allowing
+  configured popup blur to style it without a custom background tint.
+- Refactored all runtime layers around focused modules and explicit names,
+  with shared provider metadata, separate record validation and aggregation,
+  collector context, snapshot storage, RPC transport, and panel readout.
+- Documented development conventions and added named-import, dependency-cycle,
+  and Python syntax checks to repository verification.
+- UsageBeam now follows the configured GNOME system font while retaining
+  tabular figures for usage metrics.
+- Refined the panel, provider selector, quota meters, activity chart, model
+  totals, status colors, and responsive hierarchy around a shared Beam accent.
+- Refresh feedback and provider transitions remain compact and avoid animating
+  popup geometry.
+- Background refreshes update the panel without rebuilding a closed popup.
+- Large transcript records are scanned once per chunk, reducing collection work.
+
+### Fixed
+
+- Provider names now align optically with the smaller panel statistics,
+  including when the configured font or display scale changes.
+- Oversized Codex records unrelated to token usage no longer cause a persistent
+  incomplete-history warning.
+- Local-only providers retain saved activity during temporary failures and
+  reduce retry frequency when their source is unavailable.
+
 ## 2.0.0-alpha.3 - 2026-09-09
 
 ### Added

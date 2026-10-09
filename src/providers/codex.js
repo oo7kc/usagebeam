@@ -1,12 +1,85 @@
-import {localDate, number, record, section, windowUsage} from '../core/usage.js';
+import {getLocalDate} from '../core/dates.js';
+import {createQuotaWindow, createUsageRecord, createUsageSection} from '../core/usage.js';
+import {parseNonNegativeNumber, sanitizeText} from '../core/values.js';
 
 const MAX_WINDOWS = 32;
 
-function shortText(value, fallback = null, max = 80) {
-    if (typeof value !== 'string')
-        return fallback;
-    const text = value.trim();
-    return text && !/[\u0000-\u001f\u007f]/.test(text) ? text.slice(0, max) : fallback;
+function jsonStringEnd(text, start) {
+    let escaped = false;
+    for (let index = start + 1; index < text.length; index++) {
+        if (escaped) {
+            escaped = false;
+        } else if (text[index] === '\\') {
+            escaped = true;
+        } else if (text[index] === '"') {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function topLevelString(text, property) {
+    const stack = [];
+    let expectsKey = false;
+    for (let index = 0; index < text.length; index++) {
+        const character = text[index];
+        if (character === '"') {
+            const end = jsonStringEnd(text, index);
+            if (end < 0)
+                return null;
+            if (stack.length === 1 && stack[0] === '{' && expectsKey) {
+                let key;
+                try {
+                    key = JSON.parse(text.slice(index, end + 1));
+                } catch {
+                    return null;
+                }
+                let cursor = end + 1;
+                while (/\s/.test(text[cursor] ?? ''))
+                    cursor++;
+                if (text[cursor] !== ':')
+                    return null;
+                cursor++;
+                while (/\s/.test(text[cursor] ?? ''))
+                    cursor++;
+                if (key === property) {
+                    if (text[cursor] !== '"')
+                        return null;
+                    const valueEnd = jsonStringEnd(text, cursor);
+                    if (valueEnd < 0)
+                        return null;
+                    try {
+                        return JSON.parse(text.slice(cursor, valueEnd + 1));
+                    } catch {
+                        return null;
+                    }
+                }
+                expectsKey = false;
+            }
+            index = end;
+        } else if (character === '{' || character === '[') {
+            stack.push(character);
+            if (stack.length === 1 && character === '{')
+                expectsKey = true;
+        } else if (character === '}' || character === ']') {
+            const expected = character === '}' ? '{' : '[';
+            if (stack.at(-1) !== expected)
+                return null;
+            stack.pop();
+            if (!stack.length)
+                return null;
+        } else if (stack.length === 1 && stack[0] === '{' && character === ',') {
+            expectsKey = true;
+        }
+    }
+    return null;
+}
+
+export function codexOversizedRecordMayAffectUsage(prefix) {
+    if (!(prefix instanceof Uint8Array))
+        return true;
+    const type = topLevelString(new TextDecoder().decode(prefix), 'type');
+    return type !== 'compacted' && type !== 'response_item';
 }
 
 function compareBuckets([left], [right]) {
@@ -17,7 +90,7 @@ function compareBuckets([left], [right]) {
     return left.localeCompare(right);
 }
 
-export function codexLimits(response, now = Date.now()) {
+export function parseCodexLimits(response, now = Date.now()) {
     const scoped = response?.rateLimitsByLimitId && typeof response.rateLimitsByLimitId === 'object' &&
         !Array.isArray(response.rateLimitsByLimitId)
         ? Object.entries(response.rateLimitsByLimitId).sort(compareBuckets)
@@ -33,20 +106,20 @@ export function codexLimits(response, now = Date.now()) {
                 truncated = true;
                 break;
             }
-            const w = bucket?.[key];
-            if (!w || typeof w !== 'object' || Array.isArray(w))
+            const reportedWindow = bucket?.[key];
+            if (!reportedWindow || typeof reportedWindow !== 'object' || Array.isArray(reportedWindow))
                 continue;
-            const reportedMinutes = number(w.windowDurationMins);
-            const mins = Number.isSafeInteger(reportedMinutes) ? reportedMinutes : null;
-            const duration = mins === 10080 ? 'Weekly' : mins === 300 ? 'Session · 5 hours'
-                : mins ? `${mins >= 60 ? `${mins / 60} hours` : `${mins} minutes`}` : key === 'primary' ? 'Primary window' : 'Secondary window';
-            const safeBucketId = shortText(bucketId, 'quota', 120);
-            const bucketName = shortText(bucket.limitName,
+            const reportedMinutes = parseNonNegativeNumber(reportedWindow.windowDurationMins);
+            const durationMinutes = Number.isSafeInteger(reportedMinutes) ? reportedMinutes : null;
+            const duration = durationMinutes === 10080 ? 'Weekly' : durationMinutes === 300 ? 'Session · 5 hours'
+                : durationMinutes ? `${durationMinutes >= 60 ? `${durationMinutes / 60} hours` : `${durationMinutes} minutes`}` : key === 'primary' ? 'Primary window' : 'Secondary window';
+            const safeBucketId = sanitizeText(bucketId, 'quota', 120);
+            const bucketName = sanitizeText(bucket.limitName,
                 safeBucketId === 'codex' ? null : safeBucketId, 120);
-            const item = windowUsage({id: `${safeBucketId}:${key}`,
+            const item = createQuotaWindow({id: `${safeBucketId}:${key}`,
                 label: buckets.length > 1 && bucketName ? `${bucketName} · ${duration}` : duration,
-                usedPercent: w.usedPercent, durationMinutes: mins,
-                resetsAt: w.resetsAt});
+                usedPercent: reportedWindow.usedPercent, durationMinutes: durationMinutes,
+                resetsAt: reportedWindow.resetsAt});
             if (item)
                 windows.push(item);
         }
@@ -54,10 +127,10 @@ export function codexLimits(response, now = Date.now()) {
             break;
     }
     return windows.length
-        ? {...section(truncated ? 'partial' : 'ready',
+        ? {...createUsageSection(truncated ? 'partial' : 'ready',
             truncated ? 'Some Codex quota windows were omitted to keep the response bounded.' : ''),
         updatedAt: now, scope: 'account', source: 'Codex app-server', windows}
-        : {...section('unavailable', 'Codex did not report quota windows for this account.'),
+        : {...createUsageSection('unavailable', 'Codex did not report quota windows for this account.'),
         scope: 'account', source: 'Codex app-server', windows: []};
 }
 
@@ -72,62 +145,63 @@ export function parseCodexEvent(entry, state) {
     const cumulative = payload.info.total_token_usage;
     let usage = payload.info.last_token_usage;
     let identity;
-    if (cumulative && number(cumulative.total_tokens) !== null) {
+    if (cumulative && parseNonNegativeNumber(cumulative.total_tokens) !== null) {
         const fields = ['input_tokens', 'output_tokens', 'cached_input_tokens', 'cache_write_input_tokens'];
-        const current = Object.fromEntries(fields.map(field => [field, number(cumulative[field]) ?? 0]));
+        const current = Object.fromEntries(fields.map(field => [field, parseNonNegativeNumber(cumulative[field]) ?? 0]));
         current.total_tokens = Number(cumulative.total_tokens);
         if (state.cumulative && current.total_tokens === state.cumulative.total_tokens)
             return null;
         if (state.cumulative && current.total_tokens < state.cumulative.total_tokens) {
-            state.cumulativeEpoch = (number(state.cumulativeEpoch) ?? 0) + 1;
+            state.cumulativeEpoch = (parseNonNegativeNumber(state.cumulativeEpoch) ?? 0) + 1;
             usage = current;
         } else {
             const previous = state.cumulative ?? {};
             usage = Object.fromEntries(fields.map(field =>
-                [field, Math.max(0, current[field] - (number(previous[field]) ?? 0))]));
+                [field, Math.max(0, current[field] - (parseNonNegativeNumber(previous[field]) ?? 0))]));
         }
         state.cumulative = current;
         identity = `total:${state.cumulativeEpoch ?? 0}:${current.total_tokens}`;
     } else {
         identity = `${entry.timestamp}:${JSON.stringify(usage)}`;
     }
-    if (!usage || !localDate(entry.timestamp))
+    if (!usage || !getLocalDate(entry.timestamp))
         return null;
-    const input = number(usage.input_tokens) ?? 0;
-    const cacheRead = Math.min(input, number(usage.cached_input_tokens) ?? 0);
-    const cacheWrite = Math.min(input - cacheRead, number(usage.cache_write_input_tokens) ?? 0);
-    return {id: `${state.session}:${identity}`, session: state.session, date: localDate(entry.timestamp),
+    const input = parseNonNegativeNumber(usage.input_tokens) ?? 0;
+    const cacheRead = Math.min(input, parseNonNegativeNumber(usage.cached_input_tokens) ?? 0);
+    const cacheWrite = Math.min(input - cacheRead, parseNonNegativeNumber(usage.cache_write_input_tokens) ?? 0);
+    return {id: `${state.session}:${identity}`, session: state.session, date: getLocalDate(entry.timestamp),
         model: state.model || 'Unknown model', input: input - cacheRead - cacheWrite,
-        output: number(usage.output_tokens) ?? 0, cacheRead, cacheWrite};
+        output: parseNonNegativeNumber(usage.output_tokens) ?? 0, cacheRead, cacheWrite};
 }
 
-export async function collectCodex(io) {
-    const now = io.now?.() ?? Date.now();
-    const result = record('codex');
+export async function collectCodex(context) {
+    const now = context.now?.() ?? Date.now();
+    const result = createUsageRecord('codex');
     result.capabilities = {limits: true, history: true, models: true};
-    result.history = io.scan('codex', ['sessions', 'archived_sessions'], parseCodexEvent);
+    result.history = context.scan('codex', ['sessions', 'archived_sessions'], parseCodexEvent,
+        {oversizedRecordMayAffectUsage: codexOversizedRecordMayAffectUsage});
     let rpc;
     try {
-        rpc = io.codexClient();
+        rpc = context.codexClient();
         await rpc.request('initialize', {clientInfo: {name: 'usagebeam', title: 'UsageBeam', version: '2.0.0'},
             capabilities: {experimentalApi: false}});
         rpc.notify('initialized', {});
         const account = await rpc.request('account/read', {refreshToken: false});
         if (!account?.account) {
-            result.limits = {...result.limits, ...section('missing-auth', 'Sign in with codex login to read account limits.')};
+            result.limits = {...result.limits, ...createUsageSection('missing-auth', 'Sign in with codex login to read account limits.')};
             return result;
         }
-        result.plan = shortText(account.account.planType ?? account.account.type);
-        const accountIdentity = shortText(account.account.email ?? account.account.chatgptAccountId, null, 320);
-        result.accountKey = accountIdentity ? io.fingerprint(accountIdentity) : null;
+        result.plan = sanitizeText(account.account.planType ?? account.account.type);
+        const accountIdentity = sanitizeText(account.account.email ?? account.account.chatgptAccountId, null, 320);
+        result.accountKey = accountIdentity ? context.fingerprint(accountIdentity) : null;
         const limits = await rpc.request('account/rateLimits/read', {});
-        result.limits = codexLimits(limits, now);
+        result.limits = parseCodexLimits(limits, now);
         const scopedLimits = limits?.rateLimitsByLimitId && typeof limits.rateLimitsByLimitId === 'object' &&
             !Array.isArray(limits.rateLimitsByLimitId) ? Object.values(limits.rateLimitsByLimitId) : [];
-        result.plan = shortText(limits?.rateLimits?.planType ??
+        result.plan = sanitizeText(limits?.rateLimits?.planType ??
             scopedLimits.find(bucket => bucket?.planType)?.planType, result.plan);
     } catch (error) {
-        result.limits = {...result.limits, ...section(error.code === 'NOT_FOUND' ? 'unsupported' : 'unavailable',
+        result.limits = {...result.limits, ...createUsageSection(error.code === 'NOT_FOUND' ? 'unsupported' : 'unavailable',
             error.code === 'NOT_FOUND' ? 'Install the Codex CLI to read account limits.' : 'Could not read Codex limits. Check CLI sign-in and compatibility.')};
     } finally {
         rpc?.close();

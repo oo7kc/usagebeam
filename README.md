@@ -1,9 +1,12 @@
 # UsageBeam
 
-UsageBeam puts Codex and Claude Code usage where it is easiest to see: in the
+UsageBeam puts Codex, Claude Code, and OpenCode usage where it is easiest to see: in the
 GNOME top panel. The compact indicator shows the active provider's shortest quota
 and reset countdown; its popup reveals every reported limit plus seven days of
 local token and model activity.
+
+OpenCode shows local token activity in the panel and menu. Account quotas remain
+available for Codex and Claude Code.
 
 The product concept was adapted for GNOME Shell from the
 [Agents plugin in Omarchy](https://github.com/omacom/omarchy/blob/quattro/shell/plugins/agents/README.md).
@@ -13,12 +16,13 @@ preferences, accessibility, and lifecycle conventions.
 ## At a glance
 
 - Live account limits and reset windows for Codex and Claude Code.
+- OpenCode local token activity across projects, with daily and model totals.
 - A stable, single-provider panel indicator.
 - Four panel placements: left area, right area, left of calendar, or right of
   calendar.
 - Seven-day local activity chart and per-model token totals.
 - Independent live, local, cached, syncing, and setup states.
-- Light and dark surfaces derived from the active GNOME accent color.
+- System light and dark surfaces compatible with configured popup blur.
 - Private local storage with no prompt, response, transcript, or credential
   retention.
 
@@ -60,8 +64,14 @@ UsageBeam reads supported account limits from Claude Code's saved OAuth sign-in
 and scans local Claude Code project records for activity. Account limits require
 an active sign-in; local activity can remain available independently.
 
-See the detailed [Codex](docs/providers/codex.md) and
-[Claude Code](docs/providers/claude.md) provider notes for source and
+### OpenCode
+
+UsageBeam reads local OpenCode activity without accessing credentials or starting
+the OpenCode CLI. Its panel readout shows tokens over seven days. Account quotas
+and reset times are unavailable for this provider.
+
+See the detailed [Codex](docs/providers/codex.md),
+[Claude Code](docs/providers/claude.md), and [OpenCode](docs/providers/opencode.md) provider notes for source and
 compatibility details.
 
 ## Requirements
@@ -69,6 +79,8 @@ compatibility details.
 - GNOME Shell 50.
 - GJS with Gio, GLib, and Soup 3 introspection data.
 - The Codex CLI and/or Claude Code, installed and signed in for account limits.
+- For OpenCode activity: local OpenCode SQLite history and Python 3.11+ with SQLite
+  support. No additional Python packages are needed.
 
 ## Install
 
@@ -93,7 +105,12 @@ Open the preferences window from the popup or with:
 gnome-extensions prefs usagebeam@oo7kc.github.io
 ```
 
-Preferences control panel placement, refresh frequency, and quota notifications.
+Preferences let you enable and order providers, choose the startup provider,
+place the indicator, set refresh and alert behavior, control activity retention,
+and safely clear UsageBeam's saved usage data.
+
+Clearing saved usage removes UsageBeam's derived snapshots and caches. It does
+not alter provider history, so available activity rebuilds on the next refresh.
 
 ## Privacy and storage
 
@@ -129,5 +146,8 @@ that migration.
 gnome-extensions disable usagebeam@oo7kc.github.io
 gnome-extensions uninstall usagebeam@oo7kc.github.io
 ```
+
+For architecture, code conventions, and verification commands, see
+[Development](docs/development.md).
 
 UsageBeam is licensed under the [MIT License](LICENSE).

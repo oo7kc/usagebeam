@@ -2,11 +2,11 @@ import Atk from 'gi://Atk';
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
-import {chartBarGeometry} from './presentation.js';
+import {getChartBarGeometry} from './presentation.js';
 
 // Fills are allocated, never sized from allocation notifications. Their geometry
 // must not contribute to preferred size or trigger a layout feedback loop.
-export const UsageBeamBar = GObject.registerClass(class UsageBeamBar extends St.Widget {
+export const UsageBeamProgressBar = GObject.registerClass(class UsageBeamProgressBar extends St.Widget {
     _init({fraction, style, fillStyle, name, content = null, vertical = false}) {
         super._init({style_class: style, x_expand: true,
             accessible_name: name, accessible_role: Atk.Role.PROGRESS_BAR});
@@ -37,7 +37,7 @@ export const UsageBeamBar = GObject.registerClass(class UsageBeamBar extends St.
         const [width, height] = contentBox.get_size();
         const scale = St.ThemeContext.get_for_stage(this.get_stage()).scale_factor;
         const geometry = this._vertical
-            ? Object.fromEntries(Object.entries(chartBarGeometry(this._fraction, 1, width / scale, height / scale))
+            ? Object.fromEntries(Object.entries(getChartBarGeometry(this._fraction, 1, width / scale, height / scale))
                 .map(([key, value]) => [key, value * scale]))
             : {x: 0, y: 0, width: Math.round(width * this._fraction), height};
         const fillBox = new Clutter.ActorBox();

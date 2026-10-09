@@ -1,33 +1,14 @@
 .usagebeam-menu {
-  font-family: "SF Pro Text";
   font-size: 10.5pt;
-  font-feature-settings: "tnum";
-  -arrow-background-color: transparent;
-  -arrow-border-color: transparent;
   -arrow-border-width: 0px;
   -arrow-rise: 6px;
   -arrow-base: 0px;
-  background-color: transparent;
-  box-shadow: none;
 }
 
+/* Inherit the Shell surface so system themes and popup blur can style it. */
 .usagebeam-menu .popup-menu-content {
-  font-family: "SF Pro Text";
   font-size: 10.5pt;
-  font-feature-settings: "tnum";
-  border: 1px solid st-transparentize(st-lighten(-st-accent-color, 20%), 0.34);
   border-radius: 12px;
-  box-shadow: none;
-}
-
-.usagebeam-menu.usagebeam-dark .popup-menu-content {
-  color: #edf4f6;
-  background-color: st-mix(-st-accent-color, #182b35, 6%);
-}
-
-.usagebeam-menu.usagebeam-light .popup-menu-content {
-  color: #17252c;
-  background-color: st-mix(-st-accent-color, #f4f8f9, 4%);
 }
 
 .usagebeam-panel-button {
@@ -36,10 +17,7 @@
 }
 
 .usagebeam-panel-slot {
-  width: 12.5em;
-  font-family: "SF Pro Text";
-  font-size: 9.5pt;
-  font-feature-settings: "tnum";
+  font-size: 9pt;
 }
 
 .usagebeam-panel-status {
@@ -48,7 +26,6 @@
 
 .usagebeam-panel-metrics {
   spacing: 4px;
-  padding-top: 2px;
 }
 
 .usagebeam-panel-icon-slot { width: 16px; }
@@ -61,28 +38,22 @@
   icon-size: 15px;
 }
 
-.usagebeam-panel-provider,
-.usagebeam-panel-mark {
-  font-size: 9.5pt;
-}
-
 .usagebeam-panel-provider {
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .usagebeam-panel-value,
 .usagebeam-panel-reset {
-  color: st-lighten(-st-accent-color, 25%);
-  font-size: 8.75pt;
+  font-feature-settings: "tnum";
 }
 
 .usagebeam-panel-value {
-  font-weight: 620;
+  font-weight: 600;
 }
 
 .usagebeam-panel-reset {
-  font-weight: 500;
-  opacity: 0.86;
+  font-weight: 400;
+  opacity: 0.75;
   text-align: left;
 }
 
@@ -98,8 +69,9 @@
   background-color: rgba(220, 232, 237, 0.62);
 }
 
-.usagebeam-panel-separator .usagebeam-separator-dot-core {
-  background-color: rgba(255, 255, 255, 0.58);
+.usagebeam-panel-separator {
+  font-weight: 400;
+  opacity: 0.5;
 }
 
 .usagebeam-content {
@@ -125,20 +97,17 @@
   min-width: 29px;
   min-height: 29px;
   color: st-lighten(-st-accent-color, 22%);
-  font-family: "SF Pro Text";
   font-size: 10pt;
   font-weight: 650;
   text-align: center;
 }
 
 .usagebeam-title {
-  font-family: "SF Pro Display";
   font-size: 14pt;
   font-weight: 700;
 }
 
 .usagebeam-caption {
-  font-feature-settings: "tnum";
   font-size: 9.5pt;
   opacity: 0.76;
 }
@@ -159,7 +128,7 @@
 }
 
 .usagebeam-status-local {
-  color: #f8d66d;
+  color: st-lighten(-st-accent-color, 25%);
 }
 
 .usagebeam-status-cached {
@@ -169,6 +138,30 @@
 .usagebeam-selector {
   spacing: 8px;
   padding-bottom: 10px;
+}
+
+.usagebeam-provider-tab {
+  min-height: 25px;
+  padding: 4px 10px 3px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 5px 5px 0 0;
+  background-color: transparent;
+  font-size: 10pt;
+  opacity: 0.72;
+}
+
+.usagebeam-provider-tab:hover,
+.usagebeam-provider-tab:focus {
+  background-color: rgba(128, 150, 160, 0.08);
+  opacity: 0.94;
+}
+
+.usagebeam-provider-tab:checked {
+  border-bottom-color: st-lighten(-st-accent-color, 22%);
+  background-color: st-transparentize(-st-accent-color, 0.91);
+  font-weight: 650;
+  opacity: 1;
 }
 
 .usagebeam-button {
@@ -192,7 +185,8 @@
 }
 
 .usagebeam-button:focus,
-.usagebeam-disclosure:focus {
+.usagebeam-disclosure:focus,
+.usagebeam-provider-tab:focus {
   box-shadow: inset 0 0 0 2px st-transparentize(-st-accent-color, 0.24);
 }
 
@@ -216,6 +210,7 @@
 
 .usagebeam-limit-percent {
   color: st-mix(-st-accent-color, #d7e4eb, 28%);
+  font-feature-settings: "tnum";
   font-size: 9.5pt;
   font-weight: 620;
   text-align: right;
@@ -223,6 +218,7 @@
 
 .usagebeam-limit-reset {
   color: st-mix(-st-accent-color, #9baab4, 12%);
+  font-feature-settings: "tnum";
   font-size: 9.5pt;
   font-weight: 500;
   text-align: left;
@@ -251,11 +247,11 @@
 }
 
 .usagebeam-disclosure {
-  min-height: 25px;
-  margin: 3px 0 4px;
-  padding: 6px 9px;
+  min-height: 20px;
+  margin: 2px 0 3px;
+  padding: 3px 8px;
   border: 1px solid rgba(128, 150, 160, 0.30);
-  border-radius: 7px;
+  border-radius: 6px;
   background-color: rgba(128, 150, 160, 0.065);
 }
 
@@ -271,12 +267,12 @@
 }
 
 .usagebeam-disclosure-title {
-  font-size: 10pt;
-  font-weight: 650;
+  font-size: 9.5pt;
+  font-weight: 600;
 }
 
 .usagebeam-disclosure-icon {
-  icon-size: 10px;
+  icon-size: 8px;
   opacity: 0.76;
 }
 
@@ -310,7 +306,8 @@
 }
 
 .usagebeam-chart-plot {
-  height: 52px;
+  height: 51px;
+  border-bottom: 1px solid rgba(143, 166, 176, 0.22);
 }
 
 .usagebeam-chart-bar {
@@ -329,32 +326,35 @@
   background-color: st-mix(-st-accent-color, #c7dce6, 52%);
 }
 
-.usagebeam-model-meter {
-  min-height: 27px;
-  margin-bottom: 5px;
-  border: 1px solid rgba(128, 150, 160, 0.12);
-  border-radius: 4px;
-  background-color: rgba(128, 150, 160, 0.11);
+.usagebeam-chart-column.usagebeam-empty .usagebeam-chart-value,
+.usagebeam-chart-column.usagebeam-empty .usagebeam-chart-day {
+  opacity: 0.46;
 }
 
-.usagebeam-model-fill {
-  border-radius: 3px;
-  background-color: st-transparentize(st-mix(-st-accent-color, #aebfc8, 36%), 0.34);
+.usagebeam-model-heading {
+  spacing: 12px;
 }
 
-.usagebeam-model-content {
-  spacing: 10px;
-  padding: 4px 8px;
+.usagebeam-model-scope {
+  font-size: 8.75pt;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.usagebeam-model-row {
+  spacing: 12px;
+  padding-bottom: 8px;
   font-size: 9.25pt;
 }
 
 .usagebeam-model-name {
-  font-weight: 520;
+  font-weight: 600;
 }
 
-.usagebeam-model-content .usagebeam-number {
-  font-size: 8.75pt;
-  font-weight: 650;
+.usagebeam-model-total {
+  font-feature-settings: "tnum";
+  font-weight: 600;
+  text-align: right;
 }
 
 .usagebeam-actions {
@@ -362,6 +362,12 @@
   padding-top: 9px;
   margin-top: 4px;
   border-top: 1px solid rgba(128, 150, 160, 0.22);
+}
+
+.usagebeam-actions .usagebeam-caption,
+.usagebeam-section-title,
+.usagebeam-page-label {
+  font-feature-settings: "tnum";
 }
 
 .usagebeam-pagination {
@@ -416,6 +422,10 @@
   background-color: rgba(55, 76, 86, 0.18);
 }
 
+.usagebeam-menu.usagebeam-light .usagebeam-chart-plot {
+  border-color: rgba(55, 76, 86, 0.18);
+}
+
 .usagebeam-menu.usagebeam-light .usagebeam-chart-bar {
   background-color: st-mix(-st-accent-color, #6f8793, 28%);
 }
@@ -457,14 +467,17 @@
   background-color: #f05f78;
 }
 
+.usagebeam-panel-light .usagebeam-panel-value.usagebeam-caution,
 .usagebeam-menu.usagebeam-light .usagebeam-limit-percent.usagebeam-caution {
   color: #7a5b00;
 }
 
+.usagebeam-panel-light .usagebeam-panel-value.usagebeam-warning,
 .usagebeam-menu.usagebeam-light .usagebeam-limit-percent.usagebeam-warning {
   color: #9a4f00;
 }
 
+.usagebeam-panel-light .usagebeam-panel-value.usagebeam-danger,
 .usagebeam-menu.usagebeam-light .usagebeam-limit-percent.usagebeam-danger {
   color: #b12643;
 }
